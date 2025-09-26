@@ -1,0 +1,98 @@
+Core Concept: The Petty Cash Box
+Think of a physical metal box in an office that holds a small amount of cash for day-to-day expenses (coffee, stationery, cab fares, etc.). This software digitizes that process. A "cashbox" here is a digital entity representing a fund managed by a specific person (the Cashier). 
+
+Petty Cash Management System - Core Business Logic
+1. Primary Business Goal:
+To digitally manage one or more petty cash funds, replacing a physical cash box. The system must provide a complete, accurate, and immutable audit trail for every rupee in and out.
+
+2. Core Functional Entities:
+
+Cashbox: A digital fund with a current balance.
+
+Attributes: Name, Description, Designated Cashier, Current Balance, Status (Active/Inactive).
+
+Cashier: An employee user authorized to manage a specific cashbox.
+
+Transaction: Any event that changes the cashbox balance. All transactions must be recorded in a Ledger.
+
+Ledger Entry: A record in the audit trail. This is the most critical concept.
+
+3. The Ledger: The Heart of the System
+
+Purpose: To ensure the current balance of any cashbox can be proven and traced back to its origin. It prevents errors and fraud.
+
+How it Works: The ledger is a log of daily balances. Each entry is a snapshot of a single day for a single cashbox.
+
+Key Fields in a Ledger Entry:
+
+Date
+
+Opening Balance (Balance at the start of the day)
+
+Debit (Total money added to the box that day)
+
+Credit (Total money removed from the box that day)
+
+Closing Balance (Balance at the end of the day)
+
+Formula: Closing Balance = (Opening Balance + Debit) - Credit
+
+4. Fundamental Workflows & Rules:
+
+A. Starting a New Cashbox:
+
+An admin creates a new cashbox, names it, assigns a cashier, and sets an initial amount (e.g., ₹10,000).
+
+Business Rule: This action must create the first ledger entry.
+
+Opening Balance = 0
+
+Debit = ₹10,000 (the fund is established)
+
+Credit = 0
+
+Closing Balance = ₹10,000
+
+B. Performing a Transaction (e.g., Cash Payment):
+
+A user records a payment of ₹500 for office supplies from the "Main Office" cashbox.
+
+The system must:
+
+Find today's ledger entry for the "Main Office" cashbox.
+
+If it exists, add ₹500 to the Credit column and re-calculate the Closing Balance.
+
+If it doesn't exist, create a new entry for today. The Opening Balance will be yesterday's Closing Balance. Then add the ₹500 Credit.
+
+The Golden Rule: The Current Balance of the cashbox is always equal to the Closing Balance of its most recent ledger entry.
+
+C. The Non-Negotiable Rule: Cascading Balance Update
+
+Problem: What if you need to correct a transaction from yesterday?
+
+Logic: Changing yesterday's balance breaks the chain. Yesterday's closing balance is today's opening balance.
+
+Solution: After updating any ledger entry, the system must automatically recalculate all subsequent entries for that cashbox.
+
+Update Entry for Day 2 -> Recalculate its Closing Balance.
+
+Day 3's Opening Balance is now wrong. So, recalculate Day 3's Closing Balance.
+
+Repeat this process for Day 4, Day 5, etc., all the way to the present day.
+
+Why: This guarantees that the entire history is mathematically consistent and the current balance is always correct.
+
+5. Key Transaction Types:
+
+Cash Receipt: Money added to the box (e.g., an employee repays an IOU, reimbursement from the bank). Increases Balance. -> Debit
+
+Cash Payment: Money taken from the box (e.g., buying supplies, giving an advance). Decreases Balance. -> Credit
+
+Fund Transfer (Contra): Moving money between two cashboxes or between a cashbox and a bank account.
+
+From Cashbox A's perspective: It's a Credit (money leaving).
+
+From Cashbox B's perspective: It's a Debit (money arriving).
+
+IOU (I Owe You): An employee takes cash from the box (a Credit), creating a liability. When they repay it (a Debit), the liability is settled.

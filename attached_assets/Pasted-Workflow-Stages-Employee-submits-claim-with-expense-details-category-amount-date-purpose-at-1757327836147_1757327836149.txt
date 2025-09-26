@@ -1,0 +1,73 @@
+Workflow Stages:
+
+Employee → submits claim with expense details (category, amount, date, purpose, attachments like bills/receipts).
+
+Manager → reviews, approves/rejects, or returns with remarks.
+
+Admin → validates compliance with policies (limits, duplicates, correctness).
+
+Head of Organization → provides final internal approval (optional, should be configurable).
+
+Accounting Team → verifies and marks claim as Ready for Payment.
+
+Payment Processing → Accounting team enters UTR number, clicks “Process Payment”, and claim moves to Processed Payments Summary.
+
+Payment Processing Flow:
+
+Once Accounting approves, the claim automatically appears in the Payment Processing Screen.
+
+It shows claim details, employee details, approval trail, and bank details.
+
+An empty input field for UTR number is provided.
+
+After entering UTR and processing, the claim moves to Processed Payments Summary with: claim ID, employee name, payment date, UTR number, and processed by.
+
+Transparency Features (Employee Dashboard)
+
+Employees must have full visibility into their claim status at all times:
+
+Current Status: Submitted / Pending / Approved / Rejected / Paid
+
+Pending With: Name + Role of the approver (e.g., Pending with Manager – Mr. Rajesh)
+
+Approval History: Timeline of all past approvals (e.g., Approved by Manager on 08-Sep, Approved by Admin on 09-Sep)
+
+Remarks/Comments: Any notes added by approvers (e.g., “Bill corrected as per policy”)
+
+Expected Next Step: Who is next in the workflow (e.g., Next approver – Accounting Team)
+
+Progress Tracker (Visual): Submitted → Manager → Admin → Head → Accounts → Paid
+
+Key Features Needed
+
+Workflow approvals with audit trail at each step.
+
+Configurable approver levels (some orgs may skip “Head” approval).
+
+Role-based dashboards:
+
+Employee → My Claims
+
+Manager/Admin → Pending Approvals
+
+Accounts → Payment Processing
+
+Notifications/alerts (email + in-app) at each stage.
+
+Export of processed payments to Excel/CSV for reconciliation.
+
+Bulk payment processing option.
+
+SLA reminders if claim is pending with any approver >3 days.
+
+Suggested Improvements
+
+Policy Check Engine: Auto-flag claims above limits or duplicate bills.
+
+Document Attachments: Upload bills/receipts with each claim.
+
+Mobile-Friendly Flow: Allow quick submission from phone.
+
+Color-Coded Status: Pending = Yellow, Approved = Green, Rejected = Red, Paid = Blue.
+
+Audit Log: Detailed logs for compliance and statutory audits.

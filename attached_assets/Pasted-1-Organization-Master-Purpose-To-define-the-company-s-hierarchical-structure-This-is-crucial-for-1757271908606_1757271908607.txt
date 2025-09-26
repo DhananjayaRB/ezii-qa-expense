@@ -1,0 +1,90 @@
+1. Organization Master
+Purpose: To define the company's hierarchical structure. This is crucial for assigning expenses to the correct cost centers, managing approvals, and generating departmental reports.
+
+Employees: The core user base. Each employee record links to their department, location, manager (for approvals), and bank details (for reimbursements).
+
+Locations: Defines offices, branches, or sites. Critical for applying location-specific policies (e.g., different daily allowance rates for Mumbai vs. Coimbatore).
+
+Departments: Finance, Sales, R&D, etc. Essential for budgeting and departmental reporting.
+
+Programs/Divisions/Projects: Allows tracking expenses against specific business initiatives, client projects, or internal divisions. This is key for project accounting and profitability analysis.
+
+2. Cash and Bank Masters
+Purpose: To manage all the company's monetary instruments and the people who control them.
+
+Cash Box: Digital representation of physical petty cash boxes. Defines the custodian (cashier), opening balance, and current balance.
+
+Bank Accounts: Register company bank accounts used for making reimbursements or direct payments.
+
+Foreign Currencies: Master list of currencies and their exchange rates. Essential for multi-currency expense recording and reimbursement.
+
+Company Cards: Register corporate credit/debit cards. Links a card to an employee, sets spending limits, and helps reconcile statements.
+
+Bill Hold Reason: Pre-defined list of reasons for putting a vendor payment on hold (e.g., "Pending GST Invoice," "Quality Issue"). Standardizes communication.
+
+Account Supervisors: Designates officials (e.g., in Finance) who must approve certain types of payments or audits.
+
+User Bank Account: Where employees register their personal bank account details for reimbursements.
+
+3. Party Master
+Purpose: To manage all external entities the company transacts with.
+
+Party Type: Categorizes external entities (e.g., Vendor, Customer, Consultant, Employee-as-Vendor).
+
+Party Master: The master database of all parties. Each record includes name, GSTIN, contact details, and bank information. Eliminates duplicate data entry and ensures accurate GST compliance.
+
+4. Settings
+Purpose: The core engine room that controls access, timelines, and processes.
+
+Admin Accounts: User accounts with super-user privileges to configure the entire system.
+
+User Roles & Permissions: Defines what different users can see and do (e.g., Employee, Manager, Finance, Admin). This is the core of application security.
+
+Financial Period Cycle: Defines open and closed accounting periods. Prevents users from submitting expenses for a month that has already been closed for accounting.
+
+Workflow: The most critical business logic. Defines the approval chains based on rules like amount, department, expense type, etc. (e.g., "All expenses > ₹50,000 must be approved by Department Head AND Finance").
+
+Expense User's: Likely means configuring which employees are active users of the expense system.
+
+GST Config: Sets the company's GSTIN, configurate rules for calculating GST on expenses, and defines Input Tax Credit (ITC) logic.
+
+5. Expense Master
+Purpose: To define the "vocabulary" of expenses—what can be claimed, under what rules.
+
+Expense Groups: Broad categories to group similar expense heads for reporting (e.g., "Travel," "Office Expenses," "Client Entertainment").
+
+Purpose Master: Standardized list of reasons for an expense (e.g., "Client Meeting," "Team Lunch," "Project Site Visit"). Ensures consistency.
+
+Expense Heads: The specific line items users can select (e.g., "Air Fare," "Hotel Stay," "Local Conveyance"). Each head can have specific rules attached.
+
+Expense Policy: The Rulebook. Defines spending limits, required documentation, approval workflows, and allowed vendors for each expense head or group.
+
+Expense Head Classes: Possibly for further categorization (e.g., "Travel - Domestic," "Travel - International") or to link expense heads to specific accounting codes.
+
+Exception Rule: Defines the process for handling policy violations. Who can override a rule? What reason must they provide?
+
+Cost Center: The final destination for an expense in the accounting system. Links operational spending back to the company's chart of accounts.
+
+6. Accounting Interface
+Purpose: To bridge the operational expense data with the formal financial accounting system.
+
+Tally ERP: Integration with the popular Indian accounting software. This module would map Expense Heads and Cost Centers to specific Ledger Accounts in Tally and push approved journal entries automatically, eliminating manual data entry.
+
+Tax Masters: Maintains a database of GST rates for different goods and services (e.g., HSN/SAC codes) to auto-calculate tax on invoices.
+
+Control Accounts: Defines the company's key ledger accounts (e.g., Petty Cash Account, Employee Advance Account, Bank Account) used for auto-generating accounting entries.
+
+How This Dictates Menus, Functions, and Business Logic:
+Menus: Your main navigation menu will likely have sections mirror this structure: Masters, Settings, Expenses, Reports, Accounting.
+
+Functions:
+
+When an employee submits an expense, the app will use the Expense Master and Policy to validate it.
+
+The Workflow settings will determine who approves it.
+
+Once approved, the Accounting Interface will use the Cost Center and Tally ERP mapping to create a journal entry.
+
+A reimbursement will be processed using the employee's details from Organization Master and their bank info from Cash and Bank Masters.
+
+Business Logic: Every single action in the app is governed by these masters. You cannot have an expense without an expense head. You cannot have an approval without a workflow rule. You cannot reimburse without a bank account. This structure ensures consistency, control, compliance (especially with GST), and auditability.

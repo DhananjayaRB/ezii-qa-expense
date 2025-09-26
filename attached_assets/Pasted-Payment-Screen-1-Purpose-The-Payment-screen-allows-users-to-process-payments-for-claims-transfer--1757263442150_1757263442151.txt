@@ -1,0 +1,144 @@
+Payment Screen
+1. Purpose
+
+The Payment screen allows users to process payments for claims, transfer bills, or hold bills. It supports multiple payment options (Bank or Cashbox), transaction-wise or clubbed payments, and provides flexibility in handling payable amounts.
+
+2. Scope
+
+This functionality is part of the Expenses / Petty Cash Management Module. The payments recorded here will:
+
+Settle pending claims or bills.
+
+Update petty cash or bank balances.
+
+Provide tracking for individual or grouped transactions.
+
+3. Functional Requirements
+3.1 Payment Action Selection
+
+Options:
+
+Pay → Process selected claims/bills for payment.
+
+Transfer Bill → Transfer liability of bill (not directly paid).
+
+Hold Bill → Temporarily hold bill/claim (no payment processed).
+
+Default: Pay.
+
+3.2 Fields and Behavior
+
+Payment Option* (Radio: Bank / Cashbox)
+
+Mandatory.
+
+If Bank selected → Payment is processed through bank.
+
+If Cashbox selected → Payment is processed through petty cash.
+
+Payable Amount (Textbox, Read-only)
+
+Displays total amount to be paid based on selected claims.
+
+Default: 0.
+
+Auto-calculated as user selects claims.
+
+Transaction Mode Selection
+
+Transaction Wise Payment (default) → Process payments for each claim individually.
+
+Club Payments → Combine multiple selected claims into a single payment transaction.
+
+Select Category (Dropdown)
+
+Filters claims/bills by category.
+
+Optional field.
+
+Claims Grid/Table
+Columns:
+
+Checkbox → Select claim for payment.
+
+Claim ID → Unique identifier of claim.
+
+Claim Name → Name/title of the claim.
+
+Claimed By → Person (Employee/Party) who raised the claim.
+
+Type → Claim type (e.g., Expense, Travel, Vendor Bill).
+
+Request Date → Date claim was raised.
+
+Amount → Original claim amount.
+
+Paying Amount → Amount to be paid (editable if partial payment allowed).
+
+Round Off Payments (Checkbox)
+
+Optional.
+
+If selected → Automatically rounds off payable amount to nearest integer.
+
+3.3 Buttons and Actions
+
+Pay (Green Button)
+
+Validates mandatory fields.
+
+Validates claim selection.
+
+Processes payment (transaction-wise or clubbed).
+
+Updates payment status of selected claims.
+
+Updates petty cash/bank balance.
+
+Displays confirmation message: “Payment processed successfully.”
+
+4. Validation Rules
+
+Payment Option is mandatory.
+
+At least one claim must be selected for payment.
+
+Paying Amount cannot exceed original claim amount.
+
+If no claims selected → show error: “Please select at least one claim to proceed.”
+
+5. Workflow
+
+User chooses Payment Action (Pay, Transfer Bill, Hold Bill).
+
+User selects Payment Option (Bank/Cashbox).
+
+User selects Transaction Wise or Club Payments.
+
+User optionally filters claims by Category.
+
+User selects one or more claims from grid.
+
+Payable Amount auto-updates.
+
+User may tick Round Off Payments.
+
+User clicks Pay.
+
+System validates inputs.
+
+Payment is processed.
+
+Claims updated as paid/processed.
+
+Confirmation message displayed.
+
+6. Non-Functional Requirements
+
+
+
+Performance: Payment confirmation should complete in ≤ 5 seconds.
+
+Auditability: Each payment transaction must be logged with user ID, timestamp, and reference IDs.
+
+Usability: Claims grid should support pagination and search filters.

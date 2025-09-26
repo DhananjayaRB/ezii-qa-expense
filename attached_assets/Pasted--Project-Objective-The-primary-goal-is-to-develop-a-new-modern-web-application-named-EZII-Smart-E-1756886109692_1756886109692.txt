@@ -1,0 +1,84 @@
+. Project Objective
+The primary goal is to develop a new, modern web application named "EZII Smart Expenses." This application will replace an existing, outdated expense management system. The new application must replicate and enhance the functionality of the old system, incorporating a user-friendly interface and a robust back-end to handle various expense-related workflows. The application should be accessible to different user roles, including Employees, Accountants, and Administrators.
+
+2. Core Functionality & Workflows
+The application's core purpose is to digitize and streamline the expense management process. This includes:
+
+Employee Expense Submission: A user (Employee) must be able to submit expense claims with all necessary details and supporting documents (receipts).
+
+Expense Approval Workflow: Submitted claims must go through an approval process, likely by a manager or an accountant.
+
+Payment & Reconciliation: The finance team (Accountant) must be able to process payments for approved claims and reconcile them with company accounts.
+
+Reporting & Analytics: The system must generate various reports to provide insights into spending patterns, control compliance, and financial data.
+
+System Administration: Administrators must have the ability to configure the application's settings and user access.
+
+3. Menu and Sub-Menu Breakdown
+The application will have the following main menu structure. For each menu and sub-menu, the AI agent must develop the specified functionality.
+
+1. Employee
+This section is for employees to manage their personal expenses.
+
+Request: This sub-menu is for employees to submit pre-approval requests, such as a travel request or a cash advance request for an upcoming business trip.
+
+Claim: This is the core expense reporting module. Employees will use this to create, edit, and submit new expense claims. A claim is a collection of one or more expense items.
+
+Uploads: A centralized area for employees to upload receipts and other supporting documents, which can then be attached to expense claims.
+
+2. Direct Expenses
+This section is for managing expenses that are not associated with a specific employee claim.
+
+Direct Expenses: This sub-menu allows for the entry and management of company-level expenses, such as utility bills, subscriptions, or project-specific costs that do not originate from an individual employee.
+
+3. Accountant
+This section provides tools for the finance and accounting team to manage financial transactions.
+
+Payments: Allows accountants to view, approve, and process payments for all settled expense claims. This module must track the payment status (e.g., pending, paid).
+
+Receipts: A view for accountants to review all submitted receipts, allowing them to verify the authenticity and compliance of supporting documents before approving claims.
+
+4. Reports
+This menu provides various dashboards and reports for data analysis.
+
+User Reports: Provides a detailed overview of individual employee spending, including settled, pending, approved, and rejected expenses.
+
+Receipt Reports: A report that summarizes receipts based on various criteria (e.g., expense type, date, user), ensuring all claims have valid supporting documents.
+
+Control Reports: A set of reports designed to check for policy violations or non-compliant expenses, such as duplicate claims or spending over a set limit.
+
+Accountant Reports: Reports tailored for the finance team, showing details on payments, reimbursements, and financial reconciliation.
+
+Efficient Folks: A specialized report that ranks employees or departments based on their efficiency in submitting claims and getting them approved.
+
+5. Admin
+This section is for system-level configuration and maintenance.
+
+Configuration: A comprehensive module for administrators to set up the system, including creating new user roles, defining expense categories, and setting up approval workflows.
+
+Update Tally: This feature is for integrating the application with the Tally accounting software. It should facilitate the export of expense data in a format compatible with Tally for seamless ledger updates.
+
+App Usage Report: Provides statistics on how the application is being used, such as the number of claims submitted per month, average approval time, etc.
+
+Report Builder: A user-friendly tool that allows administrators to create new, custom reports by selecting and combining different data fields.
+
+Custom Reports: A section to store and access all custom reports created using the Report Builder.
+
+4. Required Fields for Expense Functionality
+A complete expense claim must include the following information. The AI agent should design the database and user interface to capture these fields for each expense item.
+
+Date: The date the expense was incurred.
+
+Description: A short explanation of the expense.
+
+Category: The type of expense (e.g., Travel, Food, Office Supplies).
+
+Amount: The total cost of the expense.
+
+Currency: The currency in which the expense was made.
+
+Receipt/Proof: The attached image or document serving as proof of the expense.
+
+Status: The current state of the expense (e.g., Pending, Approved, Rejected, Paid).
+
+The UI should also include a dashboard (as seen in the screenshots) that displays key summary metrics such as "Settled," "Payments Stage," "Approval Stage," "Rejected," and "Open Advances." This dashboard should have a date range filter and be able to display data by "Expense Type" and "Category."
