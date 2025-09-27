@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Settings, Plus, Eye, EyeOff, Users, User, X, Bot, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { ExpenseTrendsWidget } from "@/components/dashboard/ExpenseTrendsWidget";
@@ -15,11 +16,13 @@ import { PeriodFilterWidget } from "@/components/dashboard/PeriodFilterWidget";
 import { MonthlyInsightsWidget } from "@/components/dashboard/MonthlyInsightsWidget";
 import { CostToCompanyWidget } from "@/components/dashboard/CostToCompanyWidget";
 import { PaymentCalendarWidget } from "@/components/dashboard/PaymentCalendarWidget";
+import { CashFlowProjectionsWidget } from "@/components/dashboard/CashFlowProjectionsWidget";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import { Loading, CardLoading } from "@/components/ui/loading";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { usePlanStatus } from "@/hooks/usePlanStatus";
 
 interface DashboardWidget {
   id: string;
@@ -55,6 +58,7 @@ const AVAILABLE_WIDGETS = [
   { type: 'recent_claims', name: '📋 Recent Claims', component: RecentClaimsWidget },
   { type: 'category_breakdown', name: '🥧 Claim Categories', component: CategoryBreakdownWidget },
   { type: 'vendor_spending', name: '💳 Vendor Spending', component: VendorSpendingWidget },
+  { type: 'cash_flow_projections', name: '📊 Cash Flow Projections', component: CashFlowProjectionsWidget },
 ];
 
 const DEFAULT_WIDGETS = [
@@ -65,6 +69,7 @@ const DEFAULT_WIDGETS = [
   { type: 'cost_to_company', position: { x: 0, y: 1, width: 1, height: 1 } },
   { type: 'monthly_insights', position: { x: 1, y: 1, width: 1, height: 1 } },
   { type: 'expense_trends', position: { x: 2, y: 1, width: 2, height: 1 } },
+  { type: 'cash_flow_projections', position: { x: 0, y: 2, width: 4, height: 1 } },
 ];
 
 export default function CustomizableDashboard() {
@@ -73,19 +78,24 @@ export default function CustomizableDashboard() {
   const [currentView, setCurrentView] = useState<'employee' | 'admin'>('employee');
   const [currentPeriod, setCurrentPeriod] = useState('last6months');
   const { toast } = useToast();
+  const { data: planStatus } = usePlanStatus();
+
+  // Dynamic branding based on plan status
+  const assistantName = planStatus?.isSaas === false ? 'PAYAI' : 'eziiAI';
+  const sessionKey = planStatus?.isSaas === false ? 'PAYAI-notification-shown' : 'eziiAI-notification-shown';
 
   // Use JWT authentication from localStorage ONLY - no more session auth queries
   const { user: userProfile } = useAuth();
 
-  // Session-based notification for eziiAI agent
+  // Session-based notification for AI agent
   useEffect(() => {
-    const hasSeenAgentNotification = sessionStorage.getItem('eziiAI-notification-shown');
+    const hasSeenAgentNotification = sessionStorage.getItem(sessionKey);
     
     if (!hasSeenAgentNotification && userProfile) {
       // Show notification after a brief delay to let dashboard load
       const timer = setTimeout(() => {
         toast({
-          title: "🤖 Meet eziiAI",
+          title: `🤖 Meet ${assistantName}`,
           description: "Your intelligent expense management assistant is ready! Click the AI button to get help with queries and actions.",
           duration: 8000,
           action: (
@@ -106,7 +116,7 @@ export default function CustomizableDashboard() {
             </Button>
           )
         });
-        sessionStorage.setItem('eziiAI-notification-shown', 'true');
+        sessionStorage.setItem(sessionKey, 'true');
       }, 2000);
       
       return () => clearTimeout(timer);
@@ -213,7 +223,7 @@ export default function CustomizableDashboard() {
 
   const renderWidget = (widget: DashboardWidget) => {
     const widgetConfig = AVAILABLE_WIDGETS.find(w => w.type === widget.widgetType);
-    if (!widgetConfig || !analytics) return null;
+    if (!widgetConfig) return null;
 
     const WidgetComponent = widgetConfig.component;
     
@@ -222,29 +232,29 @@ export default function CustomizableDashboard() {
       switch (widget.widgetType) {
         case 'total_expenses':
           return { 
-            totalExpenses: analytics.totalExpenses, 
-            avgProcessingTime: analytics.avgProcessingTime 
+            totalExpenses: analytics?.totalExpenses || 0, 
+            avgProcessingTime: analytics?.avgProcessingTime || 0 
           };
         case 'pending_approvals':
-          return { count: analytics.pendingApprovals };
+          return { count: analytics?.pendingApprovals || 0 };
         case 'expense_trends':
-          return { data: analytics.monthlyTrends };
+          return { data: analytics?.monthlyTrends || [] };
         case 'recent_claims':
-          return { claims: analytics.recentClaims };
+          return { claims: analytics?.recentClaims || [] };
         case 'category_breakdown':
-          return { data: analytics.categoryBreakdown };
+          return { data: analytics?.categoryBreakdown || [] };
         case 'vendor_spending':
-          return { data: analytics.vendorSpending };
+          return { data: analytics?.vendorSpending || [] };
         case 'period_filter':
           return { 
             onPeriodChange: handlePeriodChange,
             currentPeriod,
-            totalExpenses: analytics.totalExpenses || '0',
+            totalExpenses: analytics?.totalExpenses || '0',
             previousPeriodExpenses: '0' // TODO: Add previous period comparison
           };
         case 'monthly_insights':
           return { 
-            data: analytics.monthlyTrends || [],
+            data: analytics?.monthlyTrends || [],
             period: currentPeriod
           };
         case 'cost_to_company':
@@ -264,54 +274,72 @@ export default function CustomizableDashboard() {
     return (
       <div
         key={widget.id}
-        className={`relative ${widget.isVisible ? '' : 'opacity-50'}`}
+        className={cn(
+          "relative group transition-all duration-300 hover-lift",
+          widget.isVisible ? 'animate-scale-in' : 'opacity-50 scale-95'
+        )}
         style={{
           gridColumn: `span ${widget.position.width}`,
           gridRow: `span ${widget.position.height}`,
         }}
         data-testid={`widget-${widget.widgetType}`}
       >
-        {isCustomizing && (
-          <div className="absolute top-2 right-2 z-10 flex gap-1">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => toggleWidgetVisibility(widget.id)}
-              className="h-6 w-6 p-0 hover:bg-red-50 hover:border-red-200"
-              data-testid={`remove-widget-${widget.id}`}
-              title="Remove widget"
-            >
-              <X className="h-3 w-3 text-red-500" />
-            </Button>
+        {/* Beautiful Widget Container with Enhanced Styling */}
+        <div className="h-full w-full relative overflow-hidden rounded-xl bg-gradient-to-br from-white via-white to-gray-50/50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 shadow-lg shadow-black/5 dark:shadow-black/20 backdrop-blur-sm">
+          {/* Subtle Gradient Overlay for Visual Depth */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-primary-600/[0.02] pointer-events-none" />
+          
+          {/* Modern Remove Button - Only Visible During Customization */}
+          {isCustomizing && (
+            <div className="absolute top-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-all duration-200">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => toggleWidgetVisibility(widget.id)}
+                className="h-7 w-7 p-0 rounded-full shadow-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 border-0 hover:scale-110 transition-all duration-200"
+                data-testid={`remove-widget-${widget.id}`}
+                title="Remove widget"
+              >
+                <X className="h-3 w-3 text-white" />
+              </Button>
+            </div>
+          )}
+          
+          {/* Widget Content with Proper Styling Context */}
+          <div className="relative z-10 h-full">
+            <WidgetComponent {...getWidgetProps()} />
           </div>
-        )}
-        <WidgetComponent {...getWidgetProps()} />
+        </div>
       </div>
     );
   };
 
-  if (widgetsLoading || analyticsLoading || costToCompanyLoading) {
+  // Only block dashboard if widget configuration is loading
+  if (widgetsLoading) {
     return (
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <Sidebar />
         <div className="flex-1 flex flex-col min-h-0">
           <Header />
-          <main className="flex-1 overflow-y-auto p-4">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-600">Loading your expense insights...</p>
+          <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+            {/* Beautiful Loading Header */}
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 space-y-4 lg:space-y-0">
+              <div className="space-y-2">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-600 bg-clip-text text-transparent">Dashboard</h1>
+                <p className="text-gray-600 dark:text-gray-300">✨ Loading your expense insights...</p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="h-8 w-24 bg-muted rounded animate-pulse"></div>
-                <div className="h-8 w-20 bg-muted rounded animate-pulse"></div>
+                <div className="h-10 w-28 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 rounded-xl animate-pulse"></div>
+                <div className="h-10 w-24 bg-gradient-to-r from-primary/20 to-primary-600/20 rounded-xl animate-pulse"></div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            
+            {/* Beautiful Loading Grid */}
+            <div className="grid-dashboard">
               {[...Array(6)].map((_, i) => (
                 <CardLoading 
                   key={i} 
-                  text={i === 0 ? "Loading expenses..." : i === 1 ? "Loading analytics..." : "Loading data..."} 
+                  text={i === 0 ? "Loading expenses..." : i === 1 ? "Loading analytics..." : "Loading insights..."} 
                 />
               ))}
             </div>
@@ -324,55 +352,107 @@ export default function CustomizableDashboard() {
   const visibleWidgets = widgets.filter(w => w.isVisible);
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
+    <>
+      {/* Skip Navigation Link for Accessibility */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-primary text-primary-foreground px-4 py-2 rounded-lg z-50 focus-ring"
+        tabIndex={0}
+      >
+        Skip to main content
+      </a>
       
-      <div className="flex-1 flex flex-col min-h-0">
-        <Header />
+      <div className="flex h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900" data-testid="dashboard-container">
+        <nav aria-label="Main navigation">
+          <Sidebar />
+        </nav>
         
-        <main className="flex-1 overflow-y-auto p-4">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900" data-testid="page-title">
+        <div className="flex-1 flex flex-col min-h-0">
+          <Header />
+        
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 lg:p-8" role="main" aria-label="Dashboard content">
+          {/* Beautiful Header Section with Enhanced Typography */}
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 space-y-4 lg:space-y-0">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-600 bg-clip-text text-transparent animate-fade-in" data-testid="page-title">
                 Dashboard
               </h1>
-              <p className="text-sm text-gray-600">
-                {currentView === 'admin' ? 'Company-wide expense analytics' : 'Your expense insights at a glance'}
+              <p className="text-gray-600 dark:text-gray-300 font-medium" id="dashboard-description">
+                {currentView === 'admin' ? '🏢 Company-wide expense analytics and insights' : '📊 Your expense insights at a glance'}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Role toggle for admin users */}
+            {/* Enhanced Action Section with Modern Design */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Beautiful Role Toggle for Admin Users */}
               {userProfile?.jwt_role === 'admin' && (
-                <div className="flex items-center gap-2">
-                  <Badge variant={currentView === 'employee' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setCurrentView('employee')} data-testid="employee-view-toggle">
+                <div className="flex items-center gap-2 p-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+                  <Badge 
+                    variant={currentView === 'employee' ? 'default' : 'outline'} 
+                    className={cn(
+                      "cursor-pointer transition-all duration-200 hover:scale-105",
+                      currentView === 'employee' 
+                        ? "bg-gradient-to-r from-primary to-primary-600 hover:shadow-colored" 
+                        : "hover:bg-primary/10"
+                    )} 
+                    onClick={() => setCurrentView('employee')} 
+                    data-testid="employee-view-toggle"
+                  >
                     <User className="h-3 w-3 mr-1" />
                     My Data
                   </Badge>
-                  <Badge variant={currentView === 'admin' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setCurrentView('admin')} data-testid="admin-view-toggle">
+                  <Badge 
+                    variant={currentView === 'admin' ? 'default' : 'outline'} 
+                    className={cn(
+                      "cursor-pointer transition-all duration-200 hover:scale-105",
+                      currentView === 'admin' 
+                        ? "bg-gradient-to-r from-primary to-primary-600 hover:shadow-colored" 
+                        : "hover:bg-primary/10"
+                    )} 
+                    onClick={() => setCurrentView('admin')} 
+                    data-testid="admin-view-toggle"
+                  >
                     <Users className="h-3 w-3 mr-1" />
                     Company Data
                   </Badge>
                 </div>
               )}
+              
+              {/* Beautiful Customize Button */}
               <Button
                 variant={isCustomizing ? "default" : "outline"}
                 onClick={() => setIsCustomizing(!isCustomizing)}
-                className="flex items-center gap-2"
-                data-testid="customize-dashboard"
+                className={cn(
+                  "flex items-center gap-2 transition-all duration-200 hover:scale-105 backdrop-blur-sm focus-ring interactive",
+                  isCustomizing 
+                    ? "bg-gradient-to-r from-primary to-primary-600 hover:shadow-colored" 
+                    : "hover:bg-primary/10 border-2"
+                )}
+                aria-expanded={isCustomizing}
+                aria-controls="widget-customization-panel"
+                aria-label={`${isCustomizing ? 'Finish' : 'Start'} customizing dashboard widgets`}
+                data-testid="button-customize-dashboard"
+                data-tutorial-element="dashboard-customize"
+                data-tutorial-description="Customize your dashboard widgets and layout"
               >
-                <Settings className="h-4 w-4" />
-                {isCustomizing ? 'Done' : 'Customize'}
+                <Settings className="h-4 w-4" aria-hidden="true" />
+                <span className="font-medium">{isCustomizing ? '✅ Done' : '⚙️ Customize'}</span>
               </Button>
             </div>
           </div>
 
+
+          {/* Stunning Widget Customization Panel */}
           {isCustomizing && (
-            <Card className="mb-4">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Add Widgets</CardTitle>
+            <Card className="mb-8 glass border-2 border-primary/20 bg-gradient-to-r from-white/90 to-primary/5 dark:from-gray-800/90 dark:to-primary/10 shadow-xl animate-slide-up" data-testid="widget-customization-panel">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-bold bg-gradient-to-r from-primary to-primary-600 bg-clip-text text-transparent flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-primary" />
+                  Add Widgets
+                </CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Choose widgets to customize your dashboard experience</p>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="flex flex-wrap gap-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3" data-testid="add-widgets">
                   {AVAILABLE_WIDGETS.map((widget) => {
                     const hasWidget = widgets.some(w => w.widgetType === widget.type && w.isVisible);
                     return (
@@ -382,12 +462,21 @@ export default function CustomizableDashboard() {
                         size="sm"
                         onClick={() => addWidget(widget.type)}
                         disabled={hasWidget}
-                        className="flex items-center gap-1 text-xs h-7"
+                        className={cn(
+                          "flex flex-col items-center gap-2 p-3 h-auto text-xs transition-all duration-200 hover-lift",
+                          hasWidget 
+                            ? "border-success bg-success/10 text-success-foreground" 
+                            : "hover:bg-primary/10 hover:border-primary/50"
+                        )}
                         data-testid={`add-widget-${widget.type}`}
                       >
-                        <Plus className="h-2 w-2" />
-                        {widget.name}
-                        {hasWidget && <Badge variant="secondary" className="ml-1 text-xs">Added</Badge>}
+                        <Plus className={cn("h-4 w-4", hasWidget ? "text-success" : "text-primary")} />
+                        <span className="font-medium text-center leading-tight">{widget.name}</span>
+                        {hasWidget && (
+                          <Badge variant="secondary" className="text-xs bg-success/20 text-success-foreground">
+                            ✅ Added
+                          </Badge>
+                        )}
                       </Button>
                     );
                   })}
@@ -396,24 +485,39 @@ export default function CustomizableDashboard() {
             </Card>
           )}
 
-          <div className="grid grid-cols-3 gap-3 auto-rows-min">
+          {/* Stunning Responsive Widget Grid */}
+          <section 
+            className="grid-dashboard animate-fade-in" 
+            data-testid="dashboard-widgets"
+            aria-label="Dashboard widgets"
+            role="region"
+            aria-describedby="dashboard-description"
+          >
             {visibleWidgets.map(renderWidget)}
-          </div>
+          </section>
 
+          {/* Beautiful Empty State */}
           {visibleWidgets.length === 0 && (
-            <Card className="p-12 text-center">
-              <CardContent>
-                <div className="text-gray-400 mb-4">
-                  <Settings className="h-12 w-12 mx-auto" />
+            <Card className="p-12 text-center glass bg-gradient-to-br from-white/80 to-gray-50/80 dark:from-gray-800/80 dark:to-gray-900/80 border-2 border-dashed border-primary/30 hover-lift">
+              <CardContent className="space-y-6">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary-600/20 rounded-full blur-lg" />
+                  <div className="relative w-20 h-20 mx-auto bg-gradient-to-br from-primary/10 to-primary-600/10 rounded-full flex items-center justify-center">
+                    <Settings className="h-10 w-10 text-primary" />
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium mb-2">No widgets visible</h3>
-                <p className="text-gray-600 mb-4">
-                  Customize your dashboard to add widgets and track your expenses.
-                </p>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">No widgets visible</h3>
+                  <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
+                    Transform your dashboard experience by adding beautiful widgets to track and analyze your expenses.
+                  </p>
+                </div>
                 <Button
                   onClick={() => setIsCustomizing(true)}
                   data-testid="start-customizing"
+                  className="bg-gradient-to-r from-primary to-primary-600 hover:shadow-colored transition-all duration-200 hover:scale-105"
                 >
+                  <Plus className="h-4 w-4 mr-2" />
                   Start Customizing
                 </Button>
               </CardContent>
@@ -422,5 +526,6 @@ export default function CustomizableDashboard() {
         </main>
       </div>
     </div>
+    </>
   );
 }

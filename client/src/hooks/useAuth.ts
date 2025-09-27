@@ -26,6 +26,7 @@ export function useAuth() {
           // Set user from JWT token payload
           setUser({
             id: payload.user_id,
+            user_id: payload.user_id, // Added for tutorial system compatibility
             orgId: payload.org_id,
             role: payload.role_name,
             email: payload.email || '',

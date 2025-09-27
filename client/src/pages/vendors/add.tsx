@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ArrowRight, Save, User, FileText, Building2, CheckCircle, Paperclip } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import FileUpload from "@/components/ui/file-upload";
+import { apiRequest } from "@/lib/queryClient";
 import type { TdsMaster } from "@shared/schema";
 
 const stepIcons = [
@@ -186,9 +187,66 @@ export default function AddVendor() {
     return errors;
   };
 
+  const validateRequiredFields = () => {
+    const errors: string[] = [];
+    
+    // Required basic information
+    if (!formData.name.trim()) {
+      errors.push("Vendor Name is required");
+    }
+    if (!formData.address.trim()) {
+      errors.push("Address is required");
+    }
+    if (!formData.contactPerson.trim()) {
+      errors.push("Contact Person is required");
+    }
+    if (!formData.phone.trim()) {
+      errors.push("Phone is required");
+    }
+    if (!formData.email.trim()) {
+      errors.push("Email is required");
+    }
+    if (!formData.pan.trim()) {
+      errors.push("PAN is required");
+    }
+    
+    // Required bank details
+    if (!formData.accountNumber.trim()) {
+      errors.push("Account Number is required");
+    }
+    if (!formData.ifscCode.trim()) {
+      errors.push("IFSC Code is required");
+    }
+    if (!formData.bankName.trim()) {
+      errors.push("Bank Name is required");
+    }
+    if (!formData.bankBranch.trim()) {
+      errors.push("Bank Branch is required");
+    }
+    
+    // Email format validation
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.push("Please enter a valid email address");
+    }
+    
+    return errors;
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      // Validate required fields first
+      const requiredFieldErrors = validateRequiredFields();
+      if (requiredFieldErrors.length > 0) {
+        toast({
+          title: "Missing Required Fields",
+          description: requiredFieldErrors.slice(0, 3).join(". ") + (requiredFieldErrors.length > 3 ? "..." : ""),
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
       // Validate TDS fields if needed
       const tdsErrors = validateTdsFields();
       if (tdsErrors.length > 0) {
@@ -200,33 +258,60 @@ export default function AddVendor() {
         setIsSubmitting(false);
         return;
       }
-      const response = await fetch("/api/vendors", {
+      // Clean up form data - convert empty strings to null for numeric fields
+      const cleanedFormData = { ...formData };
+      
+      // Handle numeric fields - convert empty strings to null
+      const numericFields = ['tdsRate', 'customTdsRate'];
+      numericFields.forEach(field => {
+        if (cleanedFormData[field] === '' || cleanedFormData[field] === undefined) {
+          cleanedFormData[field] = null;
+        } else if (cleanedFormData[field] && typeof cleanedFormData[field] === 'string') {
+          // Ensure valid number format
+          const numValue = parseFloat(cleanedFormData[field]);
+          if (!isNaN(numValue)) {
+            cleanedFormData[field] = numValue.toString();
+          } else {
+            cleanedFormData[field] = null;
+          }
+        }
+      });
+      
+      console.log('Submitting cleaned vendor data:', cleanedFormData);
+      
+      const response = await apiRequest("/api/vendors", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        body: cleanedFormData,
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        toast({
-          title: "Success",
-          description: "Vendor created successfully",
-        });
-        setLocation("/vendors");
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error", 
-          description: error.message || "Failed to create vendor",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      const result = await response.json();
       toast({
-        title: "Error",
-        description: "Failed to create vendor", 
+        title: "Success",
+        description: "Vendor created successfully",
+      });
+      setLocation("/vendors");
+    } catch (error: any) {
+      console.error("Vendor creation error:", error);
+      
+      // Handle different types of errors
+      let title = "Error";
+      let description = "Failed to create vendor";
+      
+      if (error.message) {
+        // Check if it's a validation error (400 status) or server error
+        if (error.message.includes("PAN already exists") || 
+            error.message.includes("GSTIN") || 
+            error.message.includes("already exists") ||
+            error.message.includes("required") ||
+            error.message.includes("invalid")) {
+          title = "Validation Error";
+        }
+        description = error.message;
+      }
+      
+      toast({
+        title,
+        description,
         variant: "destructive",
       });
     } finally {
@@ -234,7 +319,65 @@ export default function AddVendor() {
     }
   };
 
+  // Helper function to check if a field should be highlighted (empty required field)
+  const isFieldEmpty = (fieldName: string) => {
+    const value = formData[fieldName as keyof typeof formData];
+    return !value || (typeof value === 'string' && !value.trim());
+  };
+
+  // Helper function to get required fields for current step
+  const getRequiredFieldsForStep = (step: number) => {
+    switch (step) {
+      case 0: // Basic Information
+        return ['name', 'contactPerson', 'email', 'phone', 'address'];
+      case 1: // Tax & Legal
+        return ['pan'];
+      case 2: // Banking Information
+        return ['bankName', 'bankBranch', 'accountNumber', 'ifscCode'];
+      default:
+        return [];
+    }
+  };
+
+  // Check if current step has missing required fields
+  const validateCurrentStep = () => {
+    const requiredFields = getRequiredFieldsForStep(currentStep);
+    const missingFields = requiredFields.filter(field => isFieldEmpty(field));
+    
+    if (missingFields.length > 0) {
+      const fieldLabels: Record<string, string> = {
+        name: 'Vendor Name',
+        contactPerson: 'Contact Person',
+        email: 'Email',
+        phone: 'Phone',
+        address: 'Address',
+        pan: 'PAN Number',
+        bankName: 'Bank Name',
+        bankBranch: 'Bank Branch',
+        accountNumber: 'Account Number',
+        ifscCode: 'IFSC Code'
+      };
+      
+      const missingLabels = missingFields.map(field => fieldLabels[field]);
+      
+      toast({
+        title: "Required Fields Missing",
+        description: `Please fill in: ${missingLabels.join(', ')}`,
+        variant: "destructive",
+      });
+      
+      return false;
+    }
+    
+    return true;
+  };
+
   const nextStep = () => {
+    // Validate current step before proceeding
+    if (!validateCurrentStep()) {
+      return;
+    }
+    
     if (currentStep < stepIcons.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -254,52 +397,57 @@ export default function AddVendor() {
             <h3 className="text-lg font-semibold">Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Vendor Name *</label>
+                <label className="text-sm font-medium">Vendor Name <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Enter Vendor Name" 
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
+                  className={isFieldEmpty('name') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-vendor-name" 
                 />
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium">Contact Person</label>
+                <label className="text-sm font-medium">Contact Person <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Contact Person Name" 
                   value={formData.contactPerson}
                   onChange={(e) => handleInputChange('contactPerson', e.target.value)}
+                  className={isFieldEmpty('contactPerson') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-contact-person" 
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Email</label>
+                <label className="text-sm font-medium">Email <span className="text-red-500">*</span></label>
                 <Input 
                   type="email" 
                   placeholder="Enter Email" 
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
+                  className={isFieldEmpty('email') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-email" 
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Phone</label>
+                <label className="text-sm font-medium">Phone <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Enter Phone Number" 
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
+                  className={isFieldEmpty('phone') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-phone" 
                 />
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">Address</label>
+                <label className="text-sm font-medium">Address <span className="text-red-500">*</span></label>
                 <Textarea 
                   placeholder="Enter complete address" 
                   value={formData.address}
                   onChange={(e) => handleInputChange('address', e.target.value)}
+                  className={isFieldEmpty('address') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-address"
                 />
               </div>
@@ -558,41 +706,45 @@ export default function AddVendor() {
             <h3 className="text-lg font-semibold">Banking Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Bank Name</label>
+                <label className="text-sm font-medium">Bank Name <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Enter Bank Name" 
                   value={formData.bankName}
                   onChange={(e) => handleInputChange('bankName', e.target.value)}
+                  className={isFieldEmpty('bankName') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-bank-name" 
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Branch</label>
+                <label className="text-sm font-medium">Branch <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Enter Branch Name" 
                   value={formData.bankBranch}
                   onChange={(e) => handleInputChange('bankBranch', e.target.value)}
+                  className={isFieldEmpty('bankBranch') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-bank-branch" 
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Account Number</label>
+                <label className="text-sm font-medium">Account Number <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Enter Account Number" 
                   value={formData.accountNumber}
                   onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                  className={isFieldEmpty('accountNumber') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-account-number" 
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">IFSC Code</label>
+                <label className="text-sm font-medium">IFSC Code <span className="text-red-500">*</span></label>
                 <Input 
                   placeholder="Enter IFSC Code" 
                   value={formData.ifscCode}
                   onChange={(e) => handleInputChange('ifscCode', e.target.value.toUpperCase())}
+                  className={isFieldEmpty('ifscCode') ? 'border-red-300 focus:border-red-500' : ''}
                   data-testid="input-ifsc" 
                 />
               </div>

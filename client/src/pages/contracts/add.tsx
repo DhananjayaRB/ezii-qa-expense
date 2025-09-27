@@ -150,9 +150,9 @@ export default function AddContract() {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex-1 overflow-auto">
         <Header />
-        <main className="p-8 max-w-6xl mx-auto">
+        <main className="p-8 max-w-6xl ml-10">
           {/* Page Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">

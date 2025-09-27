@@ -1,6 +1,5 @@
 import nodemailer from 'nodemailer';
 import { Notification } from '../../shared/schema';
-
 interface EmailConfig {
   host: string;
   port: number;

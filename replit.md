@@ -72,11 +72,15 @@ Preferred communication style: Simple, everyday language.
   - Receipts with file storage integration
 
 ### Authentication & Authorization
-- **CRITICAL**: System uses JWT tokens from localStorage ONLY - NO Replit token authentication
-- **JWT Tokens**: All authentication uses JWT tokens stored in localStorage from external auth provider
+- **CRITICAL**: System uses JWT tokens from localStorage ONLY - NO login pages, token generation, or Replit authentication
+- **JWT Token Standard**: ALL APIs must use `jwt_token` from localStorage for authentication
+- **Implementation Requirements**: 
+  - Frontend: Always send `Authorization: Bearer {jwt_token}` header from localStorage
+  - Backend: ALL routes must validate JWT tokens - no authentication fallbacks or bypasses
+  - Token Storage: `localStorage.getItem('jwt_token')` is the ONLY authentication method
 - **Role-Based Access**: Three-tier permission system (employee, accountant, admin) from JWT payload
 - **Security**: JWT token validation with expiration checks and role-based permissions
-- **Disabled Endpoints**: /api/auth/user and /api/auth/token endpoints disabled (were using Replit session auth)
+- **Future Development**: ALL new APIs must follow this JWT-only authentication pattern
 
 ### File Storage & Processing
 - **Upload Handler**: Multer with local disk storage

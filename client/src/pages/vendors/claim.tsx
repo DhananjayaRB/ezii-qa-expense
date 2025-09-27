@@ -10,12 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { normalizeOcrAmount } from "@/lib/utils";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import { ArrowLeft, Building2, Calculator, Upload, FileText, Receipt, Paperclip, Calendar, Plus, List } from "lucide-react";
 import FileUpload from "@/components/ui/file-upload";
+import OcrUpload from "@/components/ui/ocr-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VendorClaimSummary } from "@/components/vendors/VendorClaimSummary";
+import UtilityBillForm from "@/components/utility/UtilityBillForm";
 import type { Vendor, TdsMaster, BillMasterType, BillMasterField } from "@shared/schema";
 
 interface VendorClaimFormData {
@@ -34,13 +37,8 @@ interface VendorClaimFormData {
   expenseType: string;
   period: string;
   
-  // Utility Bill specific
-  accountNumber: string;
-  billingPeriod: string;
-  openingReading: string;
-  closingReading: string;
-  consumptionUnits: string;
-  billDate: string;
+  // Utility Bill specific (handled by UtilityBillForm component)
+  utilityBillData?: any;
   
   // Standard Bill specific
   lineItems: Array<{
@@ -95,12 +93,7 @@ export default function VendorClaim() {
     agreementReference: "",
     expenseType: "",
     period: "",
-    accountNumber: "",
-    billingPeriod: "",
-    openingReading: "",
-    closingReading: "",
-    consumptionUnits: "",
-    billDate: "",
+    utilityBillData: null,
     lineItems: [{ description: "", quantity: "", rate: "", total: "" }],
     gstDetails: { gstin: "", sgst: "", cgst: "", igst: "" },
     transactionDetails: "",
@@ -115,6 +108,7 @@ export default function VendorClaim() {
   const [tdsAmount, setTdsAmount] = useState(0);
   const [netPayable, setNetPayable] = useState(0);
   const [submittedClaimId, setSubmittedClaimId] = useState<string | null>(null);
+  const [standardBillMode, setStandardBillMode] = useState<'detailed' | 'simple'>('detailed');
 
   // Fetch vendors
   const { data: vendors = [], isLoading: isLoadingVendors } = useQuery<Vendor[]>({
@@ -164,19 +158,115 @@ export default function VendorClaim() {
     }
   }, [formData.amount, selectedVendor, tdsMasterData]);
 
-  // Calculate consumption units for utility bills
-  useEffect(() => {
-    if (formData.category === 'utility_bill' && formData.openingReading && formData.closingReading) {
-      const opening = parseFloat(formData.openingReading);
-      const closing = parseFloat(formData.closingReading);
-      if (!isNaN(opening) && !isNaN(closing)) {
-        setFormData(prev => ({ ...prev, consumptionUnits: (closing - opening).toString() }));
-      }
-    }
-  }, [formData.openingReading, formData.closingReading, formData.category]);
+  // Utility bill data is handled by UtilityBillForm component
 
   const handleInputChange = (field: keyof VendorClaimFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // OCR Data mapping function for vendor claims
+  const handleOcrDataExtracted = (ocrData: any) => {
+    console.log('🔍 OCR Data extracted for vendor claim:', ocrData);
+    
+    if (!ocrData) return;
+    
+    const updatedFormData: Partial<VendorClaimFormData> = {};
+    
+    // Map OCR amount to Bill Amount (OCR uses 'billAmount' property) with normalization
+    if (ocrData.billAmount || ocrData.amount) {
+      const rawAmount = ocrData.billAmount || ocrData.amount;
+      const normalizedAmount = normalizeOcrAmount(rawAmount);
+      if (normalizedAmount) {
+        updatedFormData.amount = normalizedAmount;
+      }
+    }
+    
+    // Map OCR date to Invoice Date (OCR uses 'billDate' property)
+    if (ocrData.billDate || ocrData.date) {
+      updatedFormData.invoiceDate = ocrData.billDate || ocrData.date;
+    }
+    
+    // Map OCR invoice number (OCR uses 'billNo' property)
+    if (ocrData.billNo || ocrData.invoiceNumber || ocrData.billNumber) {
+      updatedFormData.invoiceNumber = ocrData.billNo || ocrData.invoiceNumber || ocrData.billNumber;
+    }
+    
+    // Map vendor name to description if available
+    if (ocrData.vendorName && !formData.description) {
+      updatedFormData.description = `Bill from ${ocrData.vendorName}`;
+    }
+
+    // Map GST Details (if extracted from OCR)
+    const gstUpdates: any = {};
+    
+    // Map GSTIN
+    if (ocrData.gstin) {
+      gstUpdates.gstin = ocrData.gstin;
+    }
+    
+    // Map individual GST amounts with normalization
+    if (ocrData.cgst || ocrData.cgstAmount) {
+      const rawCgst = ocrData.cgst || ocrData.cgstAmount;
+      const normalizedCgst = normalizeOcrAmount(rawCgst);
+      if (normalizedCgst) {
+        gstUpdates.cgst = normalizedCgst;
+      }
+    }
+    
+    if (ocrData.sgst || ocrData.sgstAmount) {
+      const rawSgst = ocrData.sgst || ocrData.sgstAmount;
+      const normalizedSgst = normalizeOcrAmount(rawSgst);
+      if (normalizedSgst) {
+        gstUpdates.sgst = normalizedSgst;
+      }
+    }
+    
+    if (ocrData.igst || ocrData.igstAmount) {
+      const rawIgst = ocrData.igst || ocrData.igstAmount;
+      const normalizedIgst = normalizeOcrAmount(rawIgst);
+      if (normalizedIgst) {
+        gstUpdates.igst = normalizedIgst;
+      }
+    }
+    
+    // Apply GST updates to form
+    if (Object.keys(gstUpdates).length > 0) {
+      setFormData(prev => ({ 
+        ...prev, 
+        gstDetails: { ...prev.gstDetails, ...gstUpdates } 
+      }));
+    }
+    
+    // Category-specific mappings
+    switch (formData.category) {
+      case 'utility_bill':
+        // Utility bill OCR data is handled by UtilityBillForm component
+        break;
+      case 'vendor_dues':
+        if (ocrData.billDate || ocrData.date) updatedFormData.dueDate = ocrData.billDate || ocrData.date;
+        break;
+      default:
+        // Standard bill or other types
+        break;
+    }
+    
+    // Apply all updates to form
+    setFormData(prev => ({ ...prev, ...updatedFormData }));
+    
+    // Create detailed success message
+    const extractedDetails = [];
+    if (ocrData.billAmount || ocrData.amount) extractedDetails.push(`Amount: ₹${ocrData.billAmount || ocrData.amount}`);
+    if (ocrData.cgst) extractedDetails.push(`CGST: ₹${ocrData.cgst}`);
+    if (ocrData.sgst) extractedDetails.push(`SGST: ₹${ocrData.sgst}`);  
+    if (ocrData.igst) extractedDetails.push(`IGST: ₹${ocrData.igst}`);
+    if (ocrData.gstin) extractedDetails.push(`GSTIN: ${ocrData.gstin}`);
+
+    toast({
+      title: "✅ OCR Data Applied!", 
+      description: extractedDetails.length > 1 
+        ? `Extracted: ${extractedDetails.join(', ')}`
+        : `Bill amount (₹${ocrData.billAmount || ocrData.amount}) and other details have been filled in the form.`,
+    });
   };
 
   const handleVendorChange = (vendorId: string) => {
@@ -474,145 +564,8 @@ export default function VendorClaim() {
         );
 
       case 'utility_bill':
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Receipt className="w-5 h-5" />
-                Utility Bill Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="accountNumber">Account/Consumer Number *</Label>
-                  <Input
-                    id="accountNumber"
-                    value={formData.accountNumber}
-                    onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                    placeholder="Enter account number"
-                    data-testid="input-account-number"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="billingPeriod">Billing Period *</Label>
-                  <Input
-                    id="billingPeriod"
-                    value={formData.billingPeriod}
-                    onChange={(e) => handleInputChange('billingPeriod', e.target.value)}
-                    placeholder="e.g., 01/09/2025 - 30/09/2025"
-                    data-testid="input-billing-period"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="openingReading">Opening Meter Reading</Label>
-                  <Input
-                    id="openingReading"
-                    type="number"
-                    value={formData.openingReading}
-                    onChange={(e) => handleInputChange('openingReading', e.target.value)}
-                    placeholder="Enter opening reading"
-                    data-testid="input-opening-reading"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="closingReading">Closing Meter Reading</Label>
-                  <Input
-                    id="closingReading"
-                    type="number"
-                    value={formData.closingReading}
-                    onChange={(e) => handleInputChange('closingReading', e.target.value)}
-                    placeholder="Enter closing reading"
-                    data-testid="input-closing-reading"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="consumptionUnits">Consumption Units</Label>
-                  <Input
-                    id="consumptionUnits"
-                    value={formData.consumptionUnits}
-                    readOnly
-                    className="bg-gray-50"
-                    placeholder="Auto-calculated"
-                    data-testid="input-consumption-units"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="billDate">Bill Date *</Label>
-                  <Input
-                    id="billDate"
-                    type="date"
-                    value={formData.billDate}
-                    onChange={(e) => handleInputChange('billDate', e.target.value)}
-                    data-testid="input-bill-date"
-                  />
-                </div>
-              </div>
-
-              {/* GST Details */}
-              <div>
-                <Label>GST Details</Label>
-                <div className="space-y-3 mt-2">
-                  <div>
-                    <Label htmlFor="gstin-utility-bill">GSTIN</Label>
-                    <Input
-                      id="gstin-utility-bill"
-                      placeholder="GSTIN"
-                      value={formData.gstDetails.gstin}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        gstDetails: { ...prev.gstDetails, gstin: e.target.value } 
-                      }))}
-                      data-testid="input-gstin-utility-bill"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="sgst-utility-bill">SGST Amount</Label>
-                    <Input
-                      id="sgst-utility-bill"
-                      placeholder="SGST Amount"
-                      type="number"
-                      value={formData.gstDetails.sgst}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        gstDetails: { ...prev.gstDetails, sgst: e.target.value } 
-                      }))}
-                      data-testid="input-sgst-utility-bill"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="cgst-utility-bill">CGST Amount</Label>
-                    <Input
-                      id="cgst-utility-bill"
-                      placeholder="CGST Amount"
-                      type="number"
-                      value={formData.gstDetails.cgst}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        gstDetails: { ...prev.gstDetails, cgst: e.target.value } 
-                      }))}
-                      data-testid="input-cgst-utility-bill"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="igst-utility-bill">IGST Amount</Label>
-                    <Input
-                      id="igst-utility-bill"
-                      placeholder="IGST Amount"
-                      type="number"
-                      value={formData.gstDetails.igst}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        gstDetails: { ...prev.gstDetails, igst: e.target.value } 
-                      }))}
-                      data-testid="input-igst-utility-bill"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
+        // Utility bill details are handled by UtilityBillForm component below
+        return null;
 
       case 'standard_bill':
         return (
@@ -647,57 +600,148 @@ export default function VendorClaim() {
                 </div>
               </div>
 
-              {/* Line Items */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <Label>Line Items *</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addLineItem} data-testid="button-add-line-item">
-                    Add Item
+              {/* Bill Entry Mode Toggle */}
+              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div>
+                  <Label className="text-sm font-medium">Entry Mode</Label>
+                  <p className="text-xs text-gray-600">Choose how you want to enter bill details</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={standardBillMode === 'simple' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStandardBillMode('simple')}
+                    data-testid="button-simple-mode"
+                  >
+                    Simple
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={standardBillMode === 'detailed' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStandardBillMode('detailed')}
+                    data-testid="button-detailed-mode"
+                  >
+                    Detailed
                   </Button>
                 </div>
-                <div className="space-y-2">
-                  {formData.lineItems.map((item, index) => (
-                    <div key={index} className="grid grid-cols-5 gap-2 items-end">
-                      <Input
-                        placeholder="Description"
-                        value={item.description}
-                        onChange={(e) => updateLineItem(index, 'description', e.target.value)}
-                        data-testid={`input-line-description-${index}`}
-                      />
-                      <Input
-                        placeholder="Qty"
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateLineItem(index, 'quantity', e.target.value)}
-                        data-testid={`input-line-quantity-${index}`}
-                      />
-                      <Input
-                        placeholder="Rate"
-                        type="number"
-                        value={item.rate}
-                        onChange={(e) => updateLineItem(index, 'rate', e.target.value)}
-                        data-testid={`input-line-rate-${index}`}
-                      />
-                      <Input
-                        placeholder="Total"
-                        value={item.total}
-                        readOnly
-                        className="bg-gray-50"
-                        data-testid={`input-line-total-${index}`}
-                      />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => removeLineItem(index)}
-                        data-testid={`button-remove-line-${index}`}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                </div>
               </div>
+
+              {/* Simple Mode */}
+              {standardBillMode === 'simple' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-green-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">Simple Bill Entry</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="simple-description">Description *</Label>
+                      <Input
+                        id="simple-description"
+                        value={formData.lineItems[0]?.description || ""}
+                        onChange={(e) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            lineItems: [{
+                              description: e.target.value,
+                              quantity: "1",
+                              rate: formData.amount || "0",
+                              total: formData.amount || "0"
+                            }]
+                          }));
+                        }}
+                        placeholder="e.g., Groceries, Office Supplies, etc."
+                        data-testid="input-simple-description"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="simple-total">Total Amount *</Label>
+                      <Input
+                        id="simple-total"
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={(e) => {
+                          handleInputChange('amount', e.target.value);
+                          // Update line item to match
+                          setFormData(prev => ({
+                            ...prev,
+                            lineItems: [{
+                              ...prev.lineItems[0],
+                              rate: e.target.value,
+                              total: e.target.value
+                            }]
+                          }));
+                        }}
+                        placeholder="Enter total amount"
+                        data-testid="input-simple-total"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-green-700">
+                    💡 Perfect for single-item bills like "Groceries - ₹500" or "Office Supplies - ₹1200"
+                  </p>
+                </div>
+              )}
+
+              {/* Detailed Mode - Line Items */}
+              {standardBillMode === 'detailed' && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <Label>Line Items *</Label>
+                      <p className="text-xs text-gray-600">Add individual items with quantities and rates</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={addLineItem} data-testid="button-add-line-item">
+                      Add Item
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {formData.lineItems.map((item, index) => (
+                      <div key={index} className="grid grid-cols-5 gap-2 items-end">
+                        <Input
+                          placeholder="Description"
+                          value={item.description}
+                          onChange={(e) => updateLineItem(index, 'description', e.target.value)}
+                          data-testid={`input-line-description-${index}`}
+                        />
+                        <Input
+                          placeholder="Qty"
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateLineItem(index, 'quantity', e.target.value)}
+                          data-testid={`input-line-quantity-${index}`}
+                        />
+                        <Input
+                          placeholder="Rate"
+                          type="number"
+                          value={item.rate}
+                          onChange={(e) => updateLineItem(index, 'rate', e.target.value)}
+                          data-testid={`input-line-rate-${index}`}
+                        />
+                        <Input
+                          placeholder="Total"
+                          value={item.total}
+                          readOnly
+                          className="bg-gray-50"
+                          data-testid={`input-line-total-${index}`}
+                        />
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => removeLineItem(index)}
+                          data-testid={`button-remove-line-${index}`}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* GST Details */}
               <div>
@@ -1202,7 +1246,28 @@ export default function VendorClaim() {
               </Card>
             )}
 
-            {/* Amount and TDS Calculation */}
+            {/* Utility Bill Form - shown when utility_bill category is selected */}
+            {formData.category === 'utility_bill' && (
+              <UtilityBillForm 
+                data={formData.utilityBillData || {}}
+                onChange={(utilityData) => {
+                  // Store complete utility bill data in the form
+                  setFormData(prev => ({
+                    ...prev,
+                    utilityBillData: utilityData,
+                    // Update GST details from utility form
+                    gstDetails: {
+                      ...prev.gstDetails,
+                      gstin: utilityData.gstin || prev.gstDetails.gstin,
+                    }
+                  }));
+                }}
+                showTitle={true}
+                data-testid="utility-bill-form-vendor-claim"
+              />
+            )}
+
+            {/* Amount and TDS Calculation with OCR */}
             {formData.category && (
               <Card>
                 <CardHeader>
@@ -1212,6 +1277,24 @@ export default function VendorClaim() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* OCR Upload Section */}
+                  <div className="border-2 border-dashed border-blue-200 rounded-lg p-4 bg-blue-50">
+                    <div className="text-center space-y-2">
+                      <Receipt className="w-8 h-8 text-blue-600 mx-auto" />
+                      <h3 className="text-lg font-medium text-blue-900">Smart Bill Processing</h3>
+                      <p className="text-sm text-blue-700">
+                        Upload your bill/receipt and let OCR automatically fill bill amount and other details
+                      </p>
+                    </div>
+                    <div className="mt-4">
+                      <OcrUpload
+                        module="vendor_claims"
+                        claimTitle={() => formData.title || 'Vendor Claim'}
+                        onDataExtracted={handleOcrDataExtracted}
+                        data-testid="ocr-upload-vendor-claim"
+                      />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="amount">Bill Amount (₹) *</Label>
@@ -1221,9 +1304,15 @@ export default function VendorClaim() {
                         step="0.01"
                         value={formData.amount}
                         onChange={(e) => handleInputChange('amount', e.target.value)}
-                        placeholder="Enter bill amount"
+                        placeholder="Enter bill amount (or use OCR above)"
                         data-testid="input-amount"
+                        className={formData.amount ? "border-green-300 bg-green-50" : ""}
                       />
+                      {formData.amount && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ Amount filled {formData.amount.startsWith('9.06') ? 'via OCR' : ''}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between">

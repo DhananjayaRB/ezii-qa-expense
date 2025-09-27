@@ -70,3 +70,29 @@ export function getCurrentDateForInput(): string {
 export function formatDateForAPI(dateString: string): Date {
   return new Date(dateString);
 }
+
+/**
+ * Normalizes OCR-extracted amounts by removing currency symbols, commas, and other non-numeric characters
+ * Examples: "₹1,200.50" -> "1200.50", "1,234" -> "1234", "$500.75" -> "500.75"
+ */
+export function normalizeOcrAmount(value: string | number): string {
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+  
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+  
+  // Remove currency symbols, commas, and spaces, but keep decimal point and digits
+  const normalized = value
+    .replace(/[₹$€£¥,\s]/g, '') // Remove common currency symbols, commas, spaces
+    .replace(/[^\d.]/g, '') // Keep only digits and decimal point
+    .replace(/\.{2,}/g, '.') // Replace multiple decimal points with single one
+    .replace(/^\./, '') // Remove leading decimal point
+    .replace(/\.$/, ''); // Remove trailing decimal point
+  
+  // Validate the result is a proper number
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? '' : normalized;
+}

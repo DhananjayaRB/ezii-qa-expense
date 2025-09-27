@@ -569,24 +569,6 @@ export default function AccommodationClaimForm({
                     
                     <div className="space-y-4">
                       <div>
-                        <Label className="text-sm font-medium">Supporting Document Available?</Label>
-                        <RadioGroup 
-                          value={form.watch(`accommodationItems.${index}.supportingDocumentAvailable`)}
-                          onValueChange={(value) => form.setValue(`accommodationItems.${index}.supportingDocumentAvailable`, value as "yes" | "no")}
-                          className="flex space-x-6 mt-2"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="yes" id={`supporting-yes-${index}`} />
-                            <Label htmlFor={`supporting-yes-${index}`} className="text-sm">Yes</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="no" id={`supporting-no-${index}`} />
-                            <Label htmlFor={`supporting-no-${index}`} className="text-sm">No</Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-
-                      <div>
                         <Label className="text-sm font-medium">Paid By</Label>
                         <RadioGroup
                           value={form.watch(`accommodationItems.${index}.paidBy`)}
@@ -640,6 +622,26 @@ export default function AccommodationClaimForm({
                         </RadioGroup>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Supporting Document Available */}
+                  <div>
+                    <Label className="text-sm font-medium">Supporting Document Available</Label>
+                    <RadioGroup 
+                      value={form.watch(`accommodationItems.${index}.supportingDocumentAvailable`)}
+                      onValueChange={(value) => form.setValue(`accommodationItems.${index}.supportingDocumentAvailable`, value as "yes" | "no")}
+                      className="flex space-x-6 mt-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yes" id={`supporting-yes-${index}`} />
+                        <Label htmlFor={`supporting-yes-${index}`} className="text-sm">Yes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="no" id={`supporting-no-${index}`} />
+                        <Label htmlFor={`supporting-no-${index}`} className="text-sm">No</Label>
+                      </div>
+                    </RadioGroup>
+                    <p className="text-xs text-gray-500 mt-1">(If Self Attested, select 'No')</p>
                   </div>
 
                   {/* Notes */}

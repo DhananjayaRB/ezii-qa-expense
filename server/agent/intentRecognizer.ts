@@ -17,7 +17,7 @@ export class IntentRecognizer {
           'pending requests|requests pending|pending expense requests|expense requests pending|my pending requests': { target: 'pending_approvals' },
           'approved claims|claims approved': { target: 'claims', filters: { status: 'approved' } },
           'my expenses|my spending|expense status': { target: 'user_expenses' },
-          'cashbox balance|cash balance|cashbox|balance|petty cashbox|petty cash balance|petty cashbox balance': { target: 'cashbox' },
+          'cashbox balance|cash balance|cashbox|balance|petty cashbox|petty cash balance|petty cashbox balance|show cashbox|cashbox status': { target: 'cashbox' },
           'petty cash|petty cash transactions|petty transactions': { target: 'petty_cash' },
           'direct expenses|direct expense list|company expenses': { target: 'direct_expenses' },
           'advance payments|advances|advance list|approved advances': { target: 'advance_payments' },
@@ -48,7 +48,17 @@ export class IntentRecognizer {
           'payment history|vendor payment history|payment tracking': { target: 'payment_history' },
           'validation rules|policy restrictions|expense restrictions|claim restrictions': { target: 'validation_rules' },
           'bill master|bill types|custom bill types|bill configuration|bill forms': { target: 'bill_master' },
-          'bill fields|form fields|custom fields|bill form fields|field configuration': { target: 'bill_fields' }
+          'bill fields|form fields|custom fields|bill form fields|field configuration': { target: 'bill_fields' },
+          // NEW: OCR and Receipt Processing Features
+          'ocr results|receipt processing|scanned receipts|ocr status|text extraction': { target: 'ocr_results' },
+          'ocr confidence|processing confidence|scan quality|extraction accuracy': { target: 'ocr_confidence' },
+          'my receipts|uploaded receipts|processed receipts|receipt history': { target: 'receipt_history' },
+          // NEW: Tutorial and Help System
+          'tutorials|help guides|user guides|training materials|how to guides': { target: 'tutorials' },
+          'tutorial steps|workflow guide|process guide|step by step guide': { target: 'tutorial_workflows' },
+          // NEW: Product Information
+          'available products|enabled products|product list|applications|modules': { target: 'organization_products' },
+          'product status|application access|module availability': { target: 'product_access' }
         }
       },
       {
@@ -63,7 +73,16 @@ export class IntentRecognizer {
           'direct expenses|direct expense page|company expenses': { target: 'navigation', destination: '/direct-expenses' },
           'vendor master|vendors|vendor management|vendor list': { target: 'navigation', destination: '/vendor-master' },
           'users|user management|team|employee list': { target: 'navigation', destination: '/users' },
-          'settings|configuration|admin settings|admin panel': { target: 'navigation', destination: '/admin/settings' }
+          'settings|configuration|admin settings|admin panel': { target: 'navigation', destination: '/admin/settings' },
+          // NEW: Product Switching Navigation
+          'payroll|payroll app|payroll system|payroll module': { target: 'product_switch', product: 'payroll' },
+          'leave|leave management|leave app|leave system': { target: 'product_switch', product: 'leave' },
+          'attendance|attendance app|attendance system': { target: 'product_switch', product: 'attendance' },
+          'core|core master|core app|core system': { target: 'product_switch', product: 'core' },
+          'expense|expense app|expense system|expense management': { target: 'product_switch', product: 'expense' },
+          // NEW: Tutorial Navigation
+          'tutorials|help|user guide|training|guides': { target: 'navigation', destination: '/tutorials' },
+          'help center|tutorial center|learning center': { target: 'navigation', destination: '/help' }
         }
       }
     ],
@@ -81,7 +100,10 @@ export class IntentRecognizer {
           'batch|payment batch': { target: 'approve_batch', extractId: true },
           'all batches|pending batches': { target: 'approve_batches', bulk: true },
           'vendor onboarding|vendor request': { target: 'approve_vendor_onboarding', extractId: true },
-          'vendor document|document verification': { target: 'approve_vendor_document', extractId: true }
+          'vendor document|document verification': { target: 'approve_vendor_document', extractId: true },
+          // NEW: OCR and Receipt Processing Actions
+          'receipt|receipt processing|ocr processing|scan receipt': { target: 'process_receipt', extractFile: true },
+          'ocr result|processing result|scan result': { target: 'confirm_ocr_result', extractId: true }
         }
       },
       {

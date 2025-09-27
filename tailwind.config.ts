@@ -6,9 +6,21 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xs: "var(--radius-xs)",
+        sm: "var(--radius-sm)", 
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        DEFAULT: "var(--radius)",
+      },
+      spacing: {
+        xs: "var(--spacing-xs)",
+        sm: "var(--spacing-sm)",
+        md: "var(--spacing-md)",
+        lg: "var(--spacing-lg)",
+        xl: "var(--spacing-xl)",
+        "2xl": "var(--spacing-2xl)",
+        "3xl": "var(--spacing-3xl)",
       },
       colors: {
         background: "var(--background)",
@@ -50,6 +62,30 @@ export default {
           "3": "var(--chart-3)",
           "4": "var(--chart-4)",
           "5": "var(--chart-5)",
+          "6": "var(--chart-6)",
+          "7": "var(--chart-7)",
+          "8": "var(--chart-8)",
+        },
+        success: {
+          DEFAULT: "var(--success)",
+          foreground: "var(--success-foreground)",
+          50: "var(--success-50)",
+          100: "var(--success-100)",
+          500: "var(--success-500)",
+        },
+        warning: {
+          DEFAULT: "var(--warning)",
+          foreground: "var(--warning-foreground)",
+          50: "var(--warning-50)",
+          100: "var(--warning-100)",
+          500: "var(--warning-500)",
+        },
+        error: {
+          DEFAULT: "var(--destructive)",
+          foreground: "var(--destructive-foreground)",
+          50: "var(--error-50)",
+          100: "var(--error-100)",
+          500: "var(--error-500)",
         },
         sidebar: {
           DEFAULT: "var(--sidebar-background)",
@@ -88,6 +124,12 @@ export default {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fadeIn 0.5s ease-out",
+        "slide-up": "slideUp 0.4s ease-out",
+        "scale-in": "scaleIn 0.3s ease-out",
+      },
+      boxShadow: {
+        colored: "var(--shadow-colored)",
       },
     },
   },

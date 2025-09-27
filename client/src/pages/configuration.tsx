@@ -28,7 +28,9 @@ import {
   PieChart,
   FileBarChart,
   Wrench,
-  BarChart3
+  BarChart3,
+  Zap,
+  Ruler
 } from "lucide-react";
 
 export default function Configuration() {
@@ -113,6 +115,16 @@ export default function Configuration() {
       items: [
         { name: "Party Type", icon: Archive, link: "/config/party-types" },
         { name: "Party Master", icon: Users, link: "/party-master" }
+      ]
+    },
+    {
+      title: "Unit Master Settings",
+      description: "Utility categories and measurement units",
+      icon: Zap,
+      bgColor: "bg-yellow-500",
+      items: [
+        { name: "Utility Categories", icon: Zap, link: "/config/utility-categories" },
+        { name: "Units of Measurement", icon: Ruler, link: "/config/units-of-measurement" }
       ]
     },
     {

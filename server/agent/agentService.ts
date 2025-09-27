@@ -128,9 +128,23 @@ export class AgentService {
         "show my requests",
         "what's my dashboard summary",
         "show petty cash",
-        "show advance payments",
+        "show advance payments", 
         "show direct expenses",
-        "petty cashbox balance"
+        "petty cashbox balance",
+        // NEW: OCR and Receipt Features
+        "show my ocr results",
+        "show receipt processing",
+        "show scan confidence",
+        "process receipt",
+        // NEW: Product Navigation  
+        "switch to payroll",
+        "go to leave management",
+        "open attendance app",
+        "show available products",
+        // NEW: Tutorial System
+        "show tutorials",
+        "help with expense claims",
+        "guide me through creating claim"
       ],
       accountant: [
         "show pending claims",
@@ -154,7 +168,24 @@ export class AgentService {
         "approve vendor onboarding #[id]",
         "approve vendor document #[id]",
         "show payment history",
-        "explain why restriction [amount]"
+        "explain why restriction [amount]",
+        // NEW: OCR and Receipt Features
+        "show ocr results",
+        "show receipt confidence scores",
+        "process receipt with ocr",
+        "confirm ocr result #[id]",
+        "show receipt processing history",
+        // NEW: Product Management
+        "switch to payroll system",
+        "go to leave application", 
+        "open attendance module",
+        "show organization products",
+        "check product access",
+        // NEW: Tutorial and Help
+        "show user tutorials",
+        "display training guides",
+        "help with workflow",
+        "guide user through process"
       ],
       manager: [
         "show pending claims",
@@ -170,7 +201,19 @@ export class AgentService {
         "create payment batch",
         "show petty cash transactions",
         "show direct expenses",
-        "show advance payments"
+        "show advance payments",
+        // NEW: OCR and Receipt Features
+        "show ocr results",
+        "process receipt with ocr",
+        "show receipt processing",
+        // NEW: Product Management
+        "switch to payroll",
+        "go to leave app",
+        "open attendance",
+        "show available products",
+        // NEW: Tutorial System
+        "show tutorials",
+        "help with processes"
       ],
       admin: [
         "show system summary",
@@ -203,7 +246,23 @@ export class AgentService {
         "approve vendor document #[id]",
         "explain why restriction [amount]",
         "explain validation rules",
-        "show payment history"
+        "show payment history",
+        // NEW: OCR and Receipt Features
+        "show all ocr results",
+        "show receipt confidence analytics",
+        "manage ocr processing",
+        "configure ocr settings",
+        "show ocr statistics",
+        // NEW: Product Management
+        "switch to any product",
+        "manage product access", 
+        "configure organization products",
+        "show product usage analytics",
+        // NEW: Tutorial and Help System
+        "manage user tutorials",
+        "create training guides",
+        "configure help system",
+        "show tutorial analytics"
       ],
       head: [
         "show system summary",
@@ -236,7 +295,23 @@ export class AgentService {
         "approve vendor document #[id]",
         "explain why restriction [amount]",
         "explain validation rules",
-        "show payment history"
+        "show payment history",
+        // NEW: OCR and Receipt Features
+        "show all ocr results",
+        "show receipt confidence analytics",
+        "manage ocr processing",
+        "configure ocr settings",
+        "show ocr statistics",
+        // NEW: Product Management
+        "switch to any product",
+        "manage product access", 
+        "configure organization products",
+        "show product usage analytics",
+        // NEW: Tutorial and Help System
+        "manage user tutorials",
+        "create training guides",
+        "configure help system",
+        "show tutorial analytics"
       ]
     };
 

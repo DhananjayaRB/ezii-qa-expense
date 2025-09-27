@@ -41,6 +41,11 @@ import {
   billMasterFields,
   dashboardWidgets,
   customReports,
+  ocrResults,
+  ocrFieldMappings,
+  ocrProcessingLogs,
+  utilityCategories,
+  unitsOfMeasurement,
   type User,
   type UpsertUser,
   type ApprovalHistory,
@@ -125,6 +130,19 @@ import {
   type InsertDashboardWidget,
   type CustomReport,
   type InsertCustomReport,
+  type UserTutorial,
+  type InsertUserTutorial,
+  userTutorials,
+  type OcrResult,
+  type InsertOcrResult,
+  type OcrFieldMapping,
+  type InsertOcrFieldMapping,
+  type OcrProcessingLog,
+  type InsertOcrProcessingLog,
+  type UtilityCategory,
+  type InsertUtilityCategory,
+  type UnitsOfMeasurement,
+  type InsertUnitsOfMeasurement,
   type WorkflowRole,
   type InsertWorkflowRole,
   type Workflow,
@@ -145,7 +163,7 @@ import {
   type InsertProcessMaster,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, like, ilike, sql, inArray, or, isNotNull, isNull, ne } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, ilike, sql, inArray, or, isNotNull, isNull, ne, getTableColumns } from "drizzle-orm";
 import { getWorkflowEngine, type WorkflowContext, type WorkflowResult, type ApprovalAction } from './workflowEngine.js';
 
 export interface IStorage {
@@ -438,6 +456,18 @@ export interface IStorage {
   updateTdsMaster(id: string, updates: Partial<TdsMaster>): Promise<TdsMaster | undefined>;
   deleteTdsMaster(id: string): Promise<void>;
 
+  // Utility Categories operations
+  createUtilityCategory(category: InsertUtilityCategory): Promise<UtilityCategory>;
+  getUtilityCategories(orgId?: string): Promise<UtilityCategory[]>;
+  updateUtilityCategory(id: string, updates: Partial<UtilityCategory>): Promise<UtilityCategory | undefined>;
+  deleteUtilityCategory(id: string): Promise<void>;
+
+  // Units of Measurement operations
+  createUnitsOfMeasurement(unit: InsertUnitsOfMeasurement): Promise<UnitsOfMeasurement>;
+  getUnitsOfMeasurement(filters?: { utilityCategoryId?: string; orgId?: string }): Promise<UnitsOfMeasurement[]>;
+  updateUnitsOfMeasurement(id: string, updates: Partial<UnitsOfMeasurement>): Promise<UnitsOfMeasurement | undefined>;
+  deleteUnitsOfMeasurement(id: string): Promise<void>;
+
   // Contract operations
   createContract(contract: InsertContract): Promise<Contract>;
   getContracts(filters?: { orgId?: string }): Promise<any[]>;
@@ -511,6 +541,16 @@ export interface IStorage {
   deleteBillMasterField(id: string): Promise<void>;
   reorderBillMasterFields(billTypeId: string, fieldOrders: { id: string; order: number }[]): Promise<void>;
 
+  // OCR operations
+  createOcrResult(ocrData: InsertOcrResult): Promise<OcrResult>;
+  getOcrResult(id: string): Promise<OcrResult | undefined>;
+  getOcrResultsByUser(userId: string, module?: string): Promise<OcrResult[]>;
+  updateOcrResult(id: string, updates: Partial<OcrResult>): Promise<OcrResult>;
+  confirmOcrResult(id: string, confirmedBy: string, confirmedData: any): Promise<OcrResult>;
+  createOcrProcessingLog(logData: InsertOcrProcessingLog): Promise<OcrProcessingLog>;
+  updateOcrResultClaimTitle(id: string, claimTitle: string, userId: string): Promise<OcrResult>;
+  getOcrResultByClaimTitle(title: string, userId: string): Promise<OcrResult | undefined>;
+
   // Dashboard widgets operations
   getDashboardWidgets(userId: string): Promise<DashboardWidget[]>;
   createDashboardWidget(widgetData: InsertDashboardWidget): Promise<DashboardWidget>;
@@ -525,6 +565,16 @@ export interface IStorage {
     vendorSpending: any[];
     avgProcessingTime: number;
   }>;
+
+  // Tutorial operations
+  getUserTutorialProgress(userId: string, orgId: string): Promise<UserTutorial[]>;
+  startTutorial(tutorialData: InsertUserTutorial): Promise<UserTutorial>;
+  markTutorialCompleted(tutorialData: InsertUserTutorial): Promise<UserTutorial>;
+  markTutorialSkipped(userId: string, orgId: string, tutorialName: string, stepId: string): Promise<UserTutorial>;
+  disableAllTutorials(userId: string, orgId: string): Promise<void>;
+  enableAllTutorials(userId: string, orgId: string): Promise<void>;
+  checkTutorialDisabled(userId: string, orgId: string): Promise<boolean>;
+  isFirstTimeUser(userId: string, orgId: string): Promise<boolean>;
 
 }
 
@@ -692,7 +742,14 @@ export class DatabaseStorage implements IStorage {
 
   async getExpenseClaim(id: string): Promise<(ExpenseClaim & { user: User; items: ExpenseItem[] }) | undefined> {
     const [result] = await db
-      .select()
+      .select({
+        ...getTableColumns(expenseClaims),
+        userId: expenseClaims.userId,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+        userEmail: users.email,
+        userRole: users.role,
+      })
       .from(expenseClaims)
       .leftJoin(users, eq(expenseClaims.userId, users.id))
       .where(eq(expenseClaims.id, id));
@@ -701,8 +758,14 @@ export class DatabaseStorage implements IStorage {
 
     const items = await this.getExpenseItems(id);
     return {
-      ...result.expense_claims,
-      user: result.users!,
+      ...result,
+      user: {
+        id: result.userId,
+        firstName: result.userFirstName,
+        lastName: result.userLastName,
+        email: result.userEmail,
+        role: result.userRole,
+      } as User,
       items,
     };
   }
@@ -4437,6 +4500,82 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tdsMaster.id, id));
   }
 
+  // Utility Categories operations
+  async createUtilityCategory(categoryData: InsertUtilityCategory): Promise<UtilityCategory> {
+    const [created] = await db.insert(utilityCategories).values(categoryData).returning();
+    return created;
+  }
+
+  async getUtilityCategories(orgId?: string): Promise<UtilityCategory[]> {
+    const whereConditions = [eq(utilityCategories.isActive, true)];
+    if (orgId) {
+      whereConditions.push(eq(utilityCategories.orgId, orgId));
+    }
+    
+    return await db
+      .select()
+      .from(utilityCategories)
+      .where(and(...whereConditions))
+      .orderBy(utilityCategories.name);
+  }
+
+  async updateUtilityCategory(id: string, updates: Partial<UtilityCategory>): Promise<UtilityCategory | undefined> {
+    const [updated] = await db
+      .update(utilityCategories)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(utilityCategories.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteUtilityCategory(id: string): Promise<void> {
+    // Soft delete by setting isActive to false
+    await db
+      .update(utilityCategories)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(utilityCategories.id, id));
+  }
+
+  // Units of Measurement operations
+  async createUnitsOfMeasurement(unitData: InsertUnitsOfMeasurement): Promise<UnitsOfMeasurement> {
+    const [created] = await db.insert(unitsOfMeasurement).values(unitData).returning();
+    return created;
+  }
+
+  async getUnitsOfMeasurement(filters?: { utilityCategoryId?: string; orgId?: string }): Promise<UnitsOfMeasurement[]> {
+    const whereConditions = [eq(unitsOfMeasurement.isActive, true)];
+    
+    if (filters?.utilityCategoryId) {
+      whereConditions.push(eq(unitsOfMeasurement.utilityCategoryId, filters.utilityCategoryId));
+    }
+    if (filters?.orgId) {
+      whereConditions.push(eq(unitsOfMeasurement.orgId, filters.orgId));
+    }
+    
+    return await db
+      .select()
+      .from(unitsOfMeasurement)
+      .where(and(...whereConditions))
+      .orderBy(unitsOfMeasurement.name);
+  }
+
+  async updateUnitsOfMeasurement(id: string, updates: Partial<UnitsOfMeasurement>): Promise<UnitsOfMeasurement | undefined> {
+    const [updated] = await db
+      .update(unitsOfMeasurement)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(unitsOfMeasurement.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteUnitsOfMeasurement(id: string): Promise<void> {
+    // Soft delete by setting isActive to false
+    await db
+      .update(unitsOfMeasurement)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(unitsOfMeasurement.id, id));
+  }
+
   // Contract operations
   async createContract(contract: InsertContract): Promise<Contract> {
     // Ensure amount is a string for decimal field
@@ -5428,6 +5567,671 @@ export class DatabaseStorage implements IStorage {
       .where(eq(customReports.id, reportId))
       .returning();
     return !!deletedReport;
+  }
+
+  // ========== OCR OPERATIONS ==========
+  
+  async createOcrResult(ocrData: InsertOcrResult): Promise<OcrResult> {
+    const [result] = await db.insert(ocrResults).values(ocrData).returning();
+    return result;
+  }
+
+  async getOcrResult(id: string): Promise<OcrResult | undefined> {
+    const [result] = await db.select().from(ocrResults).where(eq(ocrResults.id, id));
+    return result;
+  }
+
+  async getOcrResultsByUser(userId: string, module?: string): Promise<OcrResult[]> {
+    const conditions = [eq(ocrResults.uploadedBy, userId)];
+    if (module) {
+      conditions.push(eq(ocrResults.module, module));
+    }
+    
+    return await db.select()
+      .from(ocrResults)
+      .where(and(...conditions))
+      .orderBy(desc(ocrResults.createdAt));
+  }
+
+  async updateOcrResult(id: string, updates: Partial<OcrResult>): Promise<OcrResult> {
+    const [result] = await db.update(ocrResults)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(ocrResults.id, id))
+      .returning();
+    return result;
+  }
+
+  async confirmOcrResult(id: string, confirmedBy: string, confirmedData: any): Promise<OcrResult> {
+    const [result] = await db.update(ocrResults)
+      .set({
+        confirmedData,
+        isConfirmed: true,
+        confirmedBy,
+        confirmedAt: new Date(),
+        status: 'confirmed',
+        updatedAt: new Date()
+      })
+      .where(eq(ocrResults.id, id))
+      .returning();
+    return result;
+  }
+
+  async createOcrProcessingLog(logData: InsertOcrProcessingLog): Promise<OcrProcessingLog> {
+    const [log] = await db.insert(ocrProcessingLogs).values(logData).returning();
+    return log;
+  }
+
+  async updateOcrResultClaimTitle(id: string, claimTitle: string, userId: string): Promise<OcrResult> {
+    const [result] = await db.update(ocrResults)
+      .set({
+        claimTitle: claimTitle,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(ocrResults.id, id),
+        eq(ocrResults.userId, userId)
+      ))
+      .returning();
+    
+    if (!result) {
+      throw new Error(`OCR result ${id} not found or not owned by user ${userId}`);
+    }
+    
+    return result;
+  }
+
+  async getOcrResultByClaimTitle(title: string, userId: string): Promise<OcrResult | undefined> {
+    const [result] = await db.select()
+      .from(ocrResults)
+      .where(and(
+        eq(ocrResults.claimTitle, title),
+        eq(ocrResults.userId, userId)
+      ))
+      .orderBy(desc(ocrResults.createdAt))
+      .limit(1);
+    
+    return result;
+  }
+
+  // ========== CASH FLOW PROJECTIONS ==========
+
+  async getHistoricalCashFlow(startDate?: string, endDate?: string, period: string = "monthly") {
+    try {
+      // Set default date range if not provided
+      const end = endDate ? new Date(endDate) : new Date();
+      const start = startDate ? new Date(startDate) : new Date(end.getFullYear() - 1, end.getMonth(), end.getDate());
+
+      // Get all expense claims within date range
+      const claims = await db
+        .select({
+          id: expenseClaims.id,
+          totalAmount: expenseClaims.totalAmount,
+          currency: expenseClaims.currency,
+          status: expenseClaims.status,
+          createdAt: expenseClaims.createdAt,
+          submittedDate: expenseClaims.submittedDate,
+          paymentDate: expenseClaims.paymentDate
+        })
+        .from(expenseClaims)
+        .where(
+          and(
+            gte(expenseClaims.createdAt, start),
+            lte(expenseClaims.createdAt, end)
+          )
+        )
+        .orderBy(asc(expenseClaims.createdAt));
+
+      // Get direct expenses within date range
+      const directExpensesList = await db
+        .select({
+          id: directExpenses.id,
+          amount: directExpenses.amount,
+          currency: directExpenses.currency,
+          status: directExpenses.status,
+          createdAt: directExpenses.createdAt
+        })
+        .from(directExpenses)
+        .where(
+          and(
+            gte(directExpenses.createdAt, start),
+            lte(directExpenses.createdAt, end)
+          )
+        )
+        .orderBy(asc(directExpenses.createdAt));
+
+      // Get payment history
+      const payments = await db
+        .select({
+          id: paymentBatches.id,
+          totalAmount: paymentBatches.totalAmount,
+          currency: paymentBatches.currency,
+          status: paymentBatches.status,
+          createdAt: paymentBatches.createdAt,
+          releasedAt: paymentBatches.releasedAt
+        })
+        .from(paymentBatches)
+        .where(
+          and(
+            gte(paymentBatches.createdAt, start),
+            lte(paymentBatches.createdAt, end)
+          )
+        )
+        .orderBy(asc(paymentBatches.createdAt));
+
+      // Aggregate data by period
+      const historicalData = this.aggregateByPeriod(
+        claims, 
+        directExpensesList, 
+        payments, 
+        period
+      );
+
+      return {
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        period,
+        data: historicalData,
+        summary: {
+          totalExpenses: claims.length + directExpensesList.length,
+          totalAmount: this.calculateTotalAmount(claims, directExpensesList),
+          totalPayments: payments.length,
+          totalPaid: this.calculateTotalPaid(payments)
+        }
+      };
+    } catch (error) {
+      console.error("Error fetching historical cash flow:", error);
+      throw error;
+    }
+  }
+
+  async getCashFlowProjections(months: number = 6, method: string = "trend") {
+    try {
+      // Get historical data for the last 12 months for trend analysis
+      const historicalData = await this.getHistoricalCashFlow(
+        new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+        new Date().toISOString(),
+        "monthly"
+      );
+
+      // Calculate projections based on historical trends
+      const projections = this.calculateProjections(historicalData.data, months, method);
+
+      return {
+        method,
+        projectionPeriod: months,
+        historicalPeriod: 12,
+        projections,
+        confidence: this.calculateConfidence(historicalData.data),
+        lastUpdated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error("Error generating cash flow projections:", error);
+      throw error;
+    }
+  }
+
+  async getCashFlowSummary(period: string = "last12months") {
+    try {
+      // Calculate date range based on period
+      const dateRange = this.getDateRangeForPeriod(period);
+      
+      // Get historical data
+      const historicalData = await this.getHistoricalCashFlow(
+        dateRange.start.toISOString(),
+        dateRange.end.toISOString(),
+        "monthly"
+      );
+
+      // Get additional insights
+      const insights = await this.generateCashFlowInsights(historicalData);
+
+      return {
+        period,
+        dateRange: {
+          start: dateRange.start.toISOString(),
+          end: dateRange.end.toISOString()
+        },
+        summary: historicalData.summary,
+        trends: this.analyzeTrends(historicalData.data),
+        insights,
+        lastUpdated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error("Error fetching cash flow summary:", error);
+      throw error;
+    }
+  }
+
+  // Helper methods for cash flow calculations
+  private aggregateByPeriod(claims: any[], directExpensesList: any[], payments: any[], period: string) {
+    const groupedData = new Map();
+
+    // Helper function to get period key
+    const getPeriodKey = (date: Date) => {
+      if (period === "monthly") {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else if (period === "quarterly") {
+        const quarter = Math.ceil((date.getMonth() + 1) / 3);
+        return `${date.getFullYear()}-Q${quarter}`;
+      } else {
+        return `${date.getFullYear()}`;
+      }
+    };
+
+    // Process expense claims
+    claims.forEach(claim => {
+      if (claim.createdAt) {
+        const key = getPeriodKey(new Date(claim.createdAt));
+        if (!groupedData.has(key)) {
+          groupedData.set(key, {
+            period: key,
+            expenses: 0,
+            expenseAmount: 0,
+            directExpenses: 0,
+            directExpenseAmount: 0,
+            payments: 0,
+            paymentAmount: 0
+          });
+        }
+        const data = groupedData.get(key);
+        data.expenses += 1;
+        data.expenseAmount += parseFloat(claim.totalAmount || '0');
+      }
+    });
+
+    // Process direct expenses
+    directExpensesList.forEach(expense => {
+      if (expense.createdAt) {
+        const key = getPeriodKey(new Date(expense.createdAt));
+        if (!groupedData.has(key)) {
+          groupedData.set(key, {
+            period: key,
+            expenses: 0,
+            expenseAmount: 0,
+            directExpenses: 0,
+            directExpenseAmount: 0,
+            payments: 0,
+            paymentAmount: 0
+          });
+        }
+        const data = groupedData.get(key);
+        data.directExpenses += 1;
+        data.directExpenseAmount += parseFloat(expense.amount || '0');
+      }
+    });
+
+    // Process payments
+    payments.forEach(payment => {
+      if (payment.createdAt) {
+        const key = getPeriodKey(new Date(payment.createdAt));
+        if (!groupedData.has(key)) {
+          groupedData.set(key, {
+            period: key,
+            expenses: 0,
+            expenseAmount: 0,
+            directExpenses: 0,
+            directExpenseAmount: 0,
+            payments: 0,
+            paymentAmount: 0
+          });
+        }
+        const data = groupedData.get(key);
+        data.payments += 1;
+        data.paymentAmount += parseFloat(payment.totalAmount || '0');
+      }
+    });
+
+    return Array.from(groupedData.values()).sort((a, b) => a.period.localeCompare(b.period));
+  }
+
+  private calculateTotalAmount(claims: any[], directExpensesList: any[]) {
+    const claimTotal = claims.reduce((sum, claim) => sum + parseFloat(claim.totalAmount || '0'), 0);
+    const directTotal = directExpensesList.reduce((sum, expense) => sum + parseFloat(expense.amount || '0'), 0);
+    return claimTotal + directTotal;
+  }
+
+  private calculateTotalPaid(payments: any[]) {
+    return payments.reduce((sum, payment) => sum + parseFloat(payment.totalAmount || '0'), 0);
+  }
+
+  private calculateProjections(historicalData: any[], months: number, method: string) {
+    if (historicalData.length === 0) {
+      return [];
+    }
+
+    const projections = [];
+    
+    // Calculate average monthly amounts
+    const avgExpenseAmount = historicalData.reduce((sum, data) => sum + data.expenseAmount, 0) / historicalData.length;
+    const avgDirectExpenseAmount = historicalData.reduce((sum, data) => sum + data.directExpenseAmount, 0) / historicalData.length;
+    const avgPaymentAmount = historicalData.reduce((sum, data) => sum + data.paymentAmount, 0) / historicalData.length;
+
+
+    // Calculate trend (simple linear trend)
+    let expenseTrend = 0;
+    let directExpenseTrend = 0;
+    let paymentTrend = 0;
+
+    if (method === "trend" && historicalData.length > 1) {
+      const expenseValues = historicalData.map(d => d.expenseAmount);
+      const directExpenseValues = historicalData.map(d => d.directExpenseAmount);
+      const paymentValues = historicalData.map(d => d.paymentAmount);
+
+      expenseTrend = this.calculateLinearTrend(expenseValues);
+      directExpenseTrend = this.calculateLinearTrend(directExpenseValues);
+      paymentTrend = this.calculateLinearTrend(paymentValues);
+    }
+
+    // Generate projections for next N months
+    const currentDate = new Date();
+    for (let i = 1; i <= months; i++) {
+      const projectionDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
+      const periodKey = `${projectionDate.getFullYear()}-${String(projectionDate.getMonth() + 1).padStart(2, '0')}`;
+
+      const projectedExpenseAmount = Math.max(0, avgExpenseAmount + (expenseTrend * i));
+      const projectedDirectExpenseAmount = Math.max(0, avgDirectExpenseAmount + (directExpenseTrend * i));
+      const projectedPaymentAmount = Math.max(0, avgPaymentAmount + (paymentTrend * i));
+
+      projections.push({
+        period: periodKey,
+        expenseAmount: Math.round(projectedExpenseAmount),
+        directExpenseAmount: Math.round(projectedDirectExpenseAmount),
+        paymentAmount: Math.round(projectedPaymentAmount),
+        totalOutflow: Math.round(projectedExpenseAmount + projectedDirectExpenseAmount),
+        netCashFlow: Math.round(projectedPaymentAmount - (projectedExpenseAmount + projectedDirectExpenseAmount)),
+        isProjection: true
+      });
+    }
+
+    return projections;
+  }
+
+  private calculateLinearTrend(values: number[]) {
+    if (values.length < 2) return 0;
+
+    const n = values.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+
+    for (let i = 0; i < n; i++) {
+      sumX += i;
+      sumY += values[i];
+      sumXY += i * values[i];
+      sumXX += i * i;
+    }
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    return isNaN(slope) ? 0 : slope;
+  }
+
+  private calculateConfidence(historicalData: any[]) {
+    if (historicalData.length < 3) return 0.5;
+
+    // Calculate coefficient of variation for expense amounts
+    const expenseAmounts = historicalData.map(d => d.expenseAmount);
+    const mean = expenseAmounts.reduce((sum, val) => sum + val, 0) / expenseAmounts.length;
+    const variance = expenseAmounts.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / expenseAmounts.length;
+    const stdDev = Math.sqrt(variance);
+    const cv = mean > 0 ? stdDev / mean : 1;
+
+    // Convert to confidence score (lower variation = higher confidence)
+    return Math.max(0.3, Math.min(0.95, 1 - cv));
+  }
+
+  private getDateRangeForPeriod(period: string) {
+    const now = new Date();
+    let start: Date, end: Date = new Date(now);
+
+    switch (period) {
+      case "last3months":
+        start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        break;
+      case "last6months":
+        start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        break;
+      case "last12months":
+      default:
+        start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        break;
+      case "currentyear":
+        start = new Date(now.getFullYear(), 0, 1);
+        break;
+      case "lastyear":
+        start = new Date(now.getFullYear() - 1, 0, 1);
+        end = new Date(now.getFullYear() - 1, 11, 31);
+        break;
+    }
+
+    return { start, end };
+  }
+
+  private async generateCashFlowInsights(historicalData: any) {
+    const insights = [];
+
+    // Analyze spending patterns
+    const data = historicalData.data;
+    if (data.length > 0) {
+      const totalSpending = data.reduce((sum, d) => sum + d.expenseAmount + d.directExpenseAmount, 0);
+      const avgMonthlySpending = totalSpending / data.length;
+
+      insights.push({
+        type: "spending_average",
+        message: `Average monthly spending: ₹${Math.round(avgMonthlySpending).toLocaleString()}`,
+        value: avgMonthlySpending
+      });
+
+      // Find highest spending month
+      const highestSpendingMonth = data.reduce((max, current) => 
+        (current.expenseAmount + current.directExpenseAmount) > (max.expenseAmount + max.directExpenseAmount) ? current : max
+      );
+
+      insights.push({
+        type: "highest_spending",
+        message: `Highest spending was in ${highestSpendingMonth.period}: ₹${Math.round(highestSpendingMonth.expenseAmount + highestSpendingMonth.directExpenseAmount).toLocaleString()}`,
+        period: highestSpendingMonth.period,
+        value: highestSpendingMonth.expenseAmount + highestSpendingMonth.directExpenseAmount
+      });
+
+      // Calculate trend
+      if (data.length > 1) {
+        const spendingValues = data.map(d => d.expenseAmount + d.directExpenseAmount);
+        const trend = this.calculateLinearTrend(spendingValues);
+        
+        insights.push({
+          type: "spending_trend",
+          message: trend > 0 ? 
+            `Spending is trending upward by ₹${Math.round(Math.abs(trend)).toLocaleString()} per month` : 
+            `Spending is trending downward by ₹${Math.round(Math.abs(trend)).toLocaleString()} per month`,
+          trend: trend > 0 ? "increasing" : "decreasing",
+          value: Math.abs(trend)
+        });
+      }
+    }
+
+    return insights;
+  }
+
+  private analyzeTrends(data: any[]) {
+    if (data.length < 2) {
+      return {
+        direction: "stable",
+        strength: 0,
+        description: "Insufficient data for trend analysis"
+      };
+    }
+
+    const totalSpendingValues = data.map(d => d.expenseAmount + d.directExpenseAmount);
+    const trend = this.calculateLinearTrend(totalSpendingValues);
+    
+    const avgSpending = totalSpendingValues.reduce((sum, val) => sum + val, 0) / totalSpendingValues.length;
+    const trendStrength = avgSpending > 0 ? Math.abs(trend) / avgSpending : 0;
+
+    let direction = "stable";
+    let description = "Spending is relatively stable";
+
+    if (trendStrength > 0.1) {
+      if (trend > 0) {
+        direction = "increasing";
+        description = `Spending is increasing by an average of ₹${Math.round(trend).toLocaleString()} per month`;
+      } else {
+        direction = "decreasing";
+        description = `Spending is decreasing by an average of ₹${Math.round(Math.abs(trend)).toLocaleString()} per month`;
+      }
+    }
+
+    return {
+      direction,
+      strength: Math.min(1, trendStrength * 10), // Scale to 0-1
+      description,
+      monthlyChange: trend
+    };
+  }
+
+  // Tutorial operations
+  async getUserTutorialProgress(userId: string, orgId: string): Promise<UserTutorial[]> {
+    return await db
+      .select()
+      .from(userTutorials)
+      .where(and(
+        eq(userTutorials.userId, userId),
+        eq(userTutorials.orgId, orgId)
+      ))
+      .orderBy(userTutorials.createdAt);
+  }
+
+  async startTutorial(tutorialData: InsertUserTutorial): Promise<UserTutorial> {
+    const [tutorial] = await db
+      .insert(userTutorials)
+      .values({
+        ...tutorialData,
+        isCompleted: tutorialData.isCompleted ?? false,
+        createdAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: [userTutorials.userId, userTutorials.orgId, userTutorials.tutorialName, userTutorials.stepId],
+        set: {
+          isCompleted: tutorialData.isCompleted ?? false,
+          stepProgress: tutorialData.stepProgress,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    return tutorial;
+  }
+
+  async markTutorialCompleted(tutorialData: InsertUserTutorial): Promise<UserTutorial> {
+    const [tutorial] = await db
+      .insert(userTutorials)
+      .values({
+        ...tutorialData,
+        isCompleted: true,
+        completedAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: [userTutorials.userId, userTutorials.orgId, userTutorials.tutorialName, userTutorials.stepId],
+        set: {
+          isCompleted: true,
+          isSkipped: false,
+          completedAt: new Date(),
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    return tutorial;
+  }
+
+  async markTutorialSkipped(userId: string, orgId: string, tutorialName: string, stepId: string): Promise<UserTutorial> {
+    const [tutorial] = await db
+      .insert(userTutorials)
+      .values({
+        userId,
+        orgId,
+        tutorialName,
+        stepId,
+        isSkipped: true,
+        isCompleted: false
+      })
+      .onConflictDoUpdate({
+        target: [userTutorials.userId, userTutorials.orgId, userTutorials.tutorialName, userTutorials.stepId],
+        set: {
+          isSkipped: true,
+          isCompleted: false,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    return tutorial;
+  }
+
+  async disableAllTutorials(userId: string, orgId: string): Promise<void> {
+    await db
+      .insert(userTutorials)
+      .values({
+        userId,
+        orgId,
+        tutorialName: 'ALL_DISABLED',
+        stepId: 'SYSTEM',
+        allTutorialsDisabled: true,
+        isCompleted: false,
+        isSkipped: false
+      })
+      .onConflictDoUpdate({
+        target: [userTutorials.userId, userTutorials.orgId, userTutorials.tutorialName, userTutorials.stepId],
+        set: {
+          allTutorialsDisabled: true,
+          updatedAt: new Date()
+        }
+      });
+  }
+
+  async enableAllTutorials(userId: string, orgId: string): Promise<void> {
+    // Delete the ALL_DISABLED record to enable tutorials
+    await db
+      .delete(userTutorials)
+      .where(and(
+        eq(userTutorials.userId, userId),
+        eq(userTutorials.orgId, orgId),
+        eq(userTutorials.tutorialName, 'ALL_DISABLED'),
+        eq(userTutorials.stepId, 'SYSTEM')
+      ));
+    
+    // Optionally, also clear any tutorial progress to reset to first-time user status
+    await db
+      .delete(userTutorials)
+      .where(and(
+        eq(userTutorials.userId, userId),
+        eq(userTutorials.orgId, orgId),
+        ne(userTutorials.tutorialName, 'ALL_DISABLED')
+      ));
+  }
+
+  async checkTutorialDisabled(userId: string, orgId: string): Promise<boolean> {
+    const [result] = await db
+      .select()
+      .from(userTutorials)
+      .where(and(
+        eq(userTutorials.userId, userId),
+        eq(userTutorials.orgId, orgId),
+        eq(userTutorials.tutorialName, 'ALL_DISABLED'),
+        eq(userTutorials.allTutorialsDisabled, true)
+      ))
+      .limit(1);
+    
+    return !!result;
+  }
+
+  async isFirstTimeUser(userId: string, orgId: string): Promise<boolean> {
+    // Check if user has any tutorial records (excluding the disable flag)
+    const [existingRecord] = await db
+      .select()
+      .from(userTutorials)
+      .where(and(
+        eq(userTutorials.userId, userId),
+        eq(userTutorials.orgId, orgId),
+        ne(userTutorials.tutorialName, 'ALL_DISABLED')
+      ))
+      .limit(1);
+    
+    return !existingRecord;
   }
 
 

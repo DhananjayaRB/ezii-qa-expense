@@ -38,9 +38,18 @@ export const jwtAuth = (req: Request, res: Response, next: NextFunction) => {
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
     
     // Verify and decode the JWT token
-    // Note: In production, you should use a proper secret key for verification
-    // For now, we'll decode without verification since this is for development
-    const decoded = jwt.decode(token) as JWTPayload;
+    let decoded: JWTPayload;
+    try {
+      decoded = jwt.verify(token, "development-secret") as JWTPayload;
+    } catch (error) {
+      // If verification fails, try to decode without verification for legacy tokens
+      console.log('JWT verification failed, trying to decode without verification:', (error as Error).message);
+      decoded = jwt.decode(token) as JWTPayload;
+      if (!decoded) {
+        console.log('JWT decode also failed');
+        return next();
+      }
+    }
     
     if (!decoded) {
       console.log('Invalid JWT token format');

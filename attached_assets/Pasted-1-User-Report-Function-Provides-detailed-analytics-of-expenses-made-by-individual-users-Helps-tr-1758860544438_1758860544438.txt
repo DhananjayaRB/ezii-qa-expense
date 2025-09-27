@@ -1,0 +1,106 @@
+1. User Report
+
+Function: Provides detailed analytics of expenses made by individual users. Helps track spending behavior, patterns, and trends at the employee level.
+
+Requirement:
+
+To monitor if employees are complying with company policies.
+
+To identify high spenders or irregular claim patterns.
+
+Useful for employee-level accountability and performance review.
+
+2. Receipt Report
+
+Function: Tracks receipts submitted against expenses for validation and auditing. Helps verify authenticity and prevent fraudulent claims.
+
+Requirement:
+
+To ensure all expenses are supported with valid proof (receipts/invoices).
+
+Useful for finance and auditors to cross-check documentation.
+
+Helps in tax compliance and reducing fraudulent expense claims.
+
+3. Control Reports
+
+Function: Offers insights into management controls, spending limits, budget adherence, and policy enforcement.
+
+Requirement:
+
+To maintain oversight and governance on overall expense processes.
+
+To detect anomalies and policy violations early.
+
+Helps management ensure compliance with internal financial policies.
+
+4. Accountant Report
+
+Function: Provides financial data for accounting, reconciliation, and audit purposes. Usually formatted for accountants and statutory compliance.
+
+Requirement:
+
+To prepare financial statements and ledger entries.
+
+To support statutory audits and tax filing.
+
+To ensure accurate financial reporting for the company.
+
+5. Efficient Folks Report
+
+Function: Tracks efficiency and performance of employees in expense management—how timely and accurate they submit claims, compliance rate, etc.
+how claims are approved and payment completeing ,how many days late ,accurate or early details 
+
+Requirement:
+
+To recognize employees who handle expenses efficiently.
+
+To improve productivity by spotting delays or inefficiencies.
+
+Can be linked with employee rewards or performance reviews.
+
+6. Department Report
+
+Function: Analyzes expenses by department or cost center for budget allocation and cost control.
+
+Requirement:
+
+To monitor departmental budgets vs. actual spending.
+
+To identify cost-heavy departments and optimize spending.
+
+Useful for budget planning, forecasting, and management review.
+
+7. Card Statement Analysis
+
+Function: Matches and analyzes corporate card expenses against submitted claims. Ensures accurate reconciliation of company card usage.
+
+Requirement:
+
+To prevent misuse of corporate cards.
+
+To reconcile company card statements with reported expenses.
+
+Helps in fraud detection and ensuring transparency in card-based spending.
+
+8. Compliance Report
+
+Function: Tracks adherence to company expense policies and highlights exceptions/violations.
+
+Requirement:
+
+To ensure employees follow policies (limits, categories, documentation).
+
+To reduce risk of non-compliance in audits.
+
+Helps enforce discipline and transparency in spending practices.
+
+✅ In short:
+
+User & Efficient Folks → Employee-level insights.
+
+Receipt & Compliance → Policy/audit validation.
+
+Department & Control → Management-level oversight.
+
+Card Statement & Accountant → Finance & reconciliation accuracy.

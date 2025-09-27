@@ -24,11 +24,19 @@ import { ExpenseClaim, User as UserType } from "@shared/schema";
 interface ClaimWithDetails extends ExpenseClaim {
   user: UserType;
   items: any[];
+  // Employee profile data from external API
+  employerName?: string;
+  employeeNumber?: string;
+  employeeEmail?: string;
 }
 
 interface ProcessedPayment extends ExpenseClaim {
   user: UserType;
   processedByUser: UserType;
+  // Employee profile data from external API
+  employerName?: string;
+  employeeNumber?: string;
+  employeeEmail?: string;
 }
 
 export default function PaymentProcessing() {
@@ -216,7 +224,7 @@ export default function PaymentProcessing() {
                         <div className="flex items-center gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-1">
                             <User className="w-4 h-4" />
-                            <span>{claim.user.firstName} {claim.user.lastName}</span>
+                            <span>{claim.employerName || `${claim.user.firstName} ${claim.user.lastName}`}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
@@ -276,7 +284,7 @@ export default function PaymentProcessing() {
                                   <div className="grid grid-cols-2 gap-2 text-sm">
                                     <div>
                                       <span className="text-gray-600">Employee:</span>
-                                      <p className="font-medium">{selectedClaim.user.firstName} {selectedClaim.user.lastName}</p>
+                                      <p className="font-medium">{selectedClaim.employerName || `${selectedClaim.user.firstName} ${selectedClaim.user.lastName}`}</p>
                                     </div>
                                     <div>
                                       <span className="text-gray-600">Payment Amount:</span>
@@ -381,7 +389,7 @@ export default function PaymentProcessing() {
                         <div className="flex items-center gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            <span>{payment.user.firstName} {payment.user.lastName}</span>
+                            <span>{payment.employerName || `${payment.user.firstName} ${payment.user.lastName}`}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Hash className="w-3 h-3" />

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { normalizeOcrAmount } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { X, CloudUpload, ChevronDown, ChevronUp } from "lucide-react";
 import CostDistribution, { CostDistributionItem } from "@/components/expense/CostDistribution";
+import OcrUpload from "@/components/ui/ocr-upload";
 
 interface ExpenseModalProps {
   open: boolean;
@@ -52,6 +54,7 @@ interface ExpenseItem {
   // Supporting Document fields (when supportingDocumentAvailable is 'yes')
   billNo?: string;
   billDate?: string;
+  billAmount?: string;
   documentFile?: File;
   vendorId?: string;
   paidBy?: 'self' | 'companyCard';
@@ -60,6 +63,12 @@ interface ExpenseItem {
   billableToCustomer?: 'yes' | 'no';
   distributeCost?: 'yes' | 'no';
   notes?: string;
+  
+  // OCR-specific vendor fields
+  vendorAddress?: string;
+  vendorPan?: string;
+  vendorGstin?: string;
+  gstin?: string;
   
   // Ticket-specific fields
   journeyDate?: string;
@@ -488,6 +497,7 @@ export default function ExpenseModal({
               // Supporting document fields
               billNo: item.billNo,
               billDate: item.billDate,
+              billAmount: item.billAmount,
               vendorId: item.vendorId,
               documentFile: item.documentFile?.name,
               paidBy: item.paidBy,
@@ -520,6 +530,7 @@ export default function ExpenseModal({
               // Supporting document fields
               billNo: item.billNo,
               billDate: item.billDate,
+              billAmount: item.billAmount,
               vendorId: item.vendorId,
               documentFile: item.documentFile?.name,
               paidBy: item.paidBy,
@@ -551,6 +562,7 @@ export default function ExpenseModal({
               // Supporting document fields
               billNo: item.billNo,
               billDate: item.billDate,
+              billAmount: item.billAmount,
               vendorId: item.vendorId,
               documentFile: item.documentFile?.name,
               paidBy: item.paidBy,
@@ -589,6 +601,7 @@ export default function ExpenseModal({
               // Supporting document fields
               billNo: item.billNo,
               billDate: item.billDate,
+              billAmount: item.billAmount,
               vendorId: item.vendorId,
               documentFile: item.documentFile?.name,
               paidBy: item.paidBy,
@@ -774,165 +787,89 @@ export default function ExpenseModal({
       <div className="border-t pt-4">
         <h4 className="text-base font-medium mb-4">Bill Details</h4>
         
-        {/* Supporting Document Available */}
-        <div className="mb-4">
-          <Label className="text-sm font-medium">Supporting Document Available</Label>
-          <div className="flex items-center gap-6 mt-2">
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id={`${sectionPrefix}supportDoc-yes-${globalIndex}`}
-                name={`${sectionPrefix}supportDoc-${globalIndex}`}
-                value="yes"
-                checked={item.supportingDocumentAvailable === 'yes'}
-                onChange={(e) => updateItem(globalIndex, "supportingDocumentAvailable", e.target.value)}
-              />
-              <Label htmlFor={`${sectionPrefix}supportDoc-yes-${globalIndex}`}>Yes</Label>
+        {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+        <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+            <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+              NEW!
             </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id={`${sectionPrefix}supportDoc-no-${globalIndex}`}
-                name={`${sectionPrefix}supportDoc-${globalIndex}`}
-                value="no"
-                checked={item.supportingDocumentAvailable === 'no'}
-                onChange={(e) => updateItem(globalIndex, "supportingDocumentAvailable", e.target.value)}
-              />
-              <Label htmlFor={`${sectionPrefix}supportDoc-no-${globalIndex}`}>No</Label>
-            </div>
-            <span className="text-sm text-gray-500">(If Self Attested, select 'No')</span>
           </div>
-          
-          {/* Supporting Document Details - Shows when Supporting Document is "Yes" */}
-          {item.supportingDocumentAvailable === 'yes' && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
-              <h5 className="text-sm font-medium text-blue-800 mb-3">Supporting Document Details</h5>
+          <p className="text-sm text-green-700 mb-4 font-medium">
+            📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+          </p>
+          <OcrUpload
+            module="employee_claims"
+            claimTitle={claimTitle || "Expense Claim"}
+            onDataExtracted={(extractedData) => {
+              console.log('🔥 BILL DETAILS OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+              console.log('🔥 BILL DETAILS OCR DEBUG: extractedData:', extractedData);
+              console.log('🔥 BILL DETAILS OCR DEBUG: Current item before update:', items[globalIndex]);
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`${sectionPrefix}bill-no-${globalIndex}`} className="text-sm font-medium">
-                    Bill No
-                  </Label>
-                  <Input
-                    id={`${sectionPrefix}bill-no-${globalIndex}`}
-                    value={item.billNo || ''}
-                    onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
-                    placeholder="Bill No."
-                    className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-no-${globalIndex}`}
-                  />
-                </div>
+              // 🔍 DEBUG: Check specific data fields
+              console.log('🔍 DEBUG amount:', extractedData?.amount);
+              console.log('🔍 DEBUG date:', extractedData?.date);  
+              console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+              console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+              
+              if (extractedData) {
+                console.log('🎯 Processing OCR data for Bill Details in form #', globalIndex + 1);
+                let extractedFields = [];
                 
-                <div>
-                  <Label htmlFor={`${sectionPrefix}bill-date-${globalIndex}`} className="text-sm font-medium">
-                    Bill Date
-                  </Label>
-                  <Input
-                    id={`${sectionPrefix}bill-date-${globalIndex}`}
-                    type="date"
-                    value={item.billDate || ''}
-                    onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
-                    className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-date-${globalIndex}`}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`${sectionPrefix}document-file-${globalIndex}`} className="text-sm font-medium">
-                    Document/Bill
-                  </Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Input
-                      id={`${sectionPrefix}document-file-${globalIndex}`}
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) updateItem(globalIndex, "documentFile", file);
-                      }}
-                      className="hidden"
-                      data-testid={`input-${sectionPrefix}document-file-${globalIndex}`}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const fileInput = document.getElementById(`${sectionPrefix}document-file-${globalIndex}`) as HTMLInputElement;
-                        fileInput?.click();
-                      }}
-                      className="bg-blue-500 text-white hover:bg-blue-600"
-                    >
-                      Browse
-                    </Button>
-                    {item.documentFile && (
-                      <span className="text-xs text-green-600 truncate max-w-32">
-                        {item.documentFile.name}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                // 💰 ENHANCED AMOUNT EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.amount || extractedData.billAmount || extractedData.total) {
+                  const amount = normalizeOcrAmount(extractedData.amount || extractedData.billAmount || extractedData.total);
+                  console.log('🔥 UPDATING BILL AMOUNT:', amount, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billAmount", String(amount));
+                  extractedFields.push(`Bill Amount: ₹${amount}`);
+                }
                 
-                <div>
-                  <Label htmlFor={`${sectionPrefix}vendor-select-${globalIndex}`} className="text-sm font-medium">
-                    Vendor
-                  </Label>
-                  <Select
-                    value={item.vendorId || ''}
-                    onValueChange={(value) => updateItem(globalIndex, "vendorId", value)}
-                  >
-                    <SelectTrigger className="mt-1" data-testid={`select-${sectionPrefix}vendor-${globalIndex}`}>
-                      <SelectValue placeholder="--select vendor--" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activeVendors.map((vendor: any) => (
-                        <SelectItem key={vendor.id} value={vendor.id}>
-                          {vendor.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor={`${sectionPrefix}choose-file-${globalIndex}`} className="text-sm font-medium">
-                  Choose File
-                </Label>
-                <div className="mt-1">
-                  <Input
-                    id={`${sectionPrefix}choose-file-${globalIndex}`}
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        // Check file size (4MB = 4 * 1024 * 1024 bytes)
-                        if (file.size > 4 * 1024 * 1024) {
-                          toast({
-                            title: "File too large",
-                            description: "Please select a file smaller than 4MB",
-                            variant: "destructive"
-                          });
-                          return;
-                        }
-                        handleFileUpload(globalIndex, file);
-                      }
-                    }}
-                    data-testid={`input-${sectionPrefix}choose-file-${globalIndex}`}
-                  />
-                  <p className="text-xs text-blue-600 mt-1">Max 4MB file upload!!!</p>
-                  {item.receiptFile && (
-                    <p className="text-xs text-green-600 mt-1">
-                      File selected: {item.receiptFile.name}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+                // 📅 ENHANCED DATE EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.date || extractedData.billDate || extractedData.invoiceDate) {
+                  const rawDate = extractedData.date || extractedData.billDate || extractedData.invoiceDate;
+                  console.log('🔥 UPDATING BILL DATE:', rawDate, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billDate", String(rawDate));
+                  extractedFields.push(`Bill Date: ${rawDate}`);
+                }
+                
+                // 📄 ENHANCED BILL NUMBER EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.invoiceNumber || extractedData.billNo || extractedData.number) {
+                  const billNo = extractedData.invoiceNumber || extractedData.billNo || extractedData.number;
+                  console.log('🔥 UPDATING BILL NUMBER:', billNo, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billNo", String(billNo));
+                  extractedFields.push(`Bill No: ${billNo}`);
+                }
+                
+                // 🏢 VENDOR NAME EXTRACTION
+                if (extractedData.vendorName || extractedData.companyName || extractedData.merchantName) {
+                  const vendorName = extractedData.vendorName || extractedData.companyName || extractedData.merchantName;
+                  console.log('🔥 UPDATING VENDOR NAME:', vendorName, 'for index:', globalIndex);
+                  updateItem(globalIndex, "vendorName", String(vendorName));
+                  extractedFields.push(`Vendor: ${vendorName}`);
+                }
+                
+                // Show success toast
+                if (extractedFields.length > 0) {
+                  toast({
+                    title: `🎉 OCR Complete for Bill Details #${globalIndex + 1}!`,
+                    description: `Extracted: ${extractedFields.join(', ')}`,
+                    duration: 5000,
+                  });
+                } else {
+                  toast({
+                    title: "⚠️ OCR Complete",
+                    description: `No usable data could be extracted from this document for Bill Details #${globalIndex + 1}.`,
+                    variant: "destructive",
+                  });
+                }
+                
+                // Force form state update to ensure UI refreshes
+                console.log('🔥 FINAL ITEM STATE after Bill Details OCR for index', globalIndex, ':', items[globalIndex]);
+              }
+            }}
+            data-testid={`ocr-upload-bill-details-${globalIndex}`}
+          />
         </div>
         
         {/* Paid by */}
@@ -964,6 +901,42 @@ export default function ExpenseModal({
           </div>
         </div>
         
+        {/* Bill Detail Fields - Always Visible for Manual Entry & OCR Auto-Fill */}
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div>
+            <Label htmlFor={`${sectionPrefix}billNo-${globalIndex}`}>Bill No</Label>
+            <Input
+              id={`${sectionPrefix}billNo-${globalIndex}`}
+              value={item.billNo || ''}
+              onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
+              placeholder="Bill No"
+              data-testid={`input-${sectionPrefix}billNo-${globalIndex}`}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${sectionPrefix}billDate-${globalIndex}`}>Bill Date</Label>
+            <Input
+              id={`${sectionPrefix}billDate-${globalIndex}`}
+              type="date"
+              value={item.billDate || ''}
+              onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
+              data-testid={`input-${sectionPrefix}billDate-${globalIndex}`}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${sectionPrefix}billAmount-${globalIndex}`}>Bill Amount</Label>
+            <Input
+              id={`${sectionPrefix}billAmount-${globalIndex}`}
+              type="number"
+              step="0.01"
+              value={item.billAmount || ''}
+              onChange={(e) => updateItem(globalIndex, "billAmount", e.target.value)}
+              placeholder="Bill Amount"
+              data-testid={`input-${sectionPrefix}billAmount-${globalIndex}`}
+            />
+          </div>
+        </div>
+
         {/* Vendor Name and Spent Date */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
@@ -1046,7 +1019,130 @@ export default function ExpenseModal({
           </div>
         </div>
       </div>
-      
+
+      {/* Supporting Document Available */}
+      <div className="mb-4">
+        <Label className="text-sm font-medium">Supporting Document Available</Label>
+        <div className="flex items-center gap-6 mt-2">
+          <div className="flex items-center space-x-2">
+            <input
+              type="radio"
+              id={`${sectionPrefix}supportDoc-yes-${globalIndex}`}
+              name={`${sectionPrefix}supportDoc-${globalIndex}`}
+              value="yes"
+              checked={item.supportingDocumentAvailable === 'yes'}
+              onChange={(e) => updateItem(globalIndex, "supportingDocumentAvailable", e.target.value)}
+            />
+            <Label htmlFor={`${sectionPrefix}supportDoc-yes-${globalIndex}`}>Yes</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <input
+              type="radio"
+              id={`${sectionPrefix}supportDoc-no-${globalIndex}`}
+              name={`${sectionPrefix}supportDoc-${globalIndex}`}
+              value="no"
+              checked={item.supportingDocumentAvailable === 'no'}
+              onChange={(e) => updateItem(globalIndex, "supportingDocumentAvailable", e.target.value)}
+            />
+            <Label htmlFor={`${sectionPrefix}supportDoc-no-${globalIndex}`}>No</Label>
+          </div>
+          <span className="text-sm text-gray-500">(If Self Attested, select 'No')</span>
+        </div>
+        
+        {/* REMOVED DUPLICATE: Bill Details fields already exist above in main Bill Details section */}
+        
+        {/* DISABLED: Supporting Document Details moved to main Bill Details */}
+        {false && (
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg space-y-4">
+            <h5 className="text-lg font-semibold text-blue-700 mb-3 flex items-center">
+              <CloudUpload className="h-5 w-5 mr-2 text-green-500" />
+              Supporting Document Details
+              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">
+                NEW!
+              </span>
+            </h5>
+            
+            {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+            <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+                <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                  NEW!
+                </div>
+              </div>
+              <p className="text-sm text-green-700 mb-4 font-medium">
+                📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+              </p>
+              <OcrUpload
+                module="employee_claims"
+                claimTitle={claimTitle || "Expense Claim"}
+                onDataExtracted={(extractedData) => {
+                  console.log('🔥 DEBUG: onDataExtracted callback triggered!', extractedData);
+                  if (extractedData) {
+                    console.log('🎯 Enhanced OCR extracted data:', extractedData);
+                    
+                    // Auto-fill fields from OCR
+                    if (extractedData.amount || extractedData.total || extractedData.billAmount) {
+                      const amount = String(extractedData.amount || extractedData.total || extractedData.billAmount).replace(/[^\d.]/g, '');
+                      updateItem(globalIndex, "amount", amount);
+                      if (extractedData.billAmount) {
+                        updateItem(globalIndex, "billAmount", String(extractedData.billAmount));
+                      }
+                    }
+                    
+                    if (extractedData.date || extractedData.billDate) {
+                      const date = extractedData.date || extractedData.billDate;
+                      try {
+                        const dateObj = new Date(date);
+                        if (!isNaN(dateObj.getTime())) {
+                          const formattedDate = dateObj.toISOString().split('T')[0];
+                          updateItem(globalIndex, "billDate", formattedDate);
+                          updateItem(globalIndex, "date", formattedDate);
+                          updateItem(globalIndex, "fromDate", formattedDate);
+                          updateItem(globalIndex, "toDate", formattedDate);
+                        }
+                      } catch (e) {
+                        console.log('Date parsing error:', e);
+                      }
+                    }
+                    
+                    if (extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber) {
+                      const billNo = extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber;
+                      updateItem(globalIndex, "billNo", String(billNo));
+                    }
+                    
+                    if (extractedData.vendor || extractedData.vendorName || extractedData.merchant) {
+                      const vendor = extractedData.vendor || extractedData.vendorName || extractedData.merchant;
+                      updateItem(globalIndex, "vendorName", String(vendor));
+                    }
+                    
+                    if (extractedData.description || extractedData.notes) {
+                      const desc = extractedData.description || extractedData.notes;
+                      updateItem(globalIndex, "description", String(desc));
+                      updateItem(globalIndex, "notes", String(desc));
+                    }
+                    
+                    if (extractedData.location || extractedData.place || extractedData.city) {
+                      const location = extractedData.location || extractedData.place || extractedData.city;
+                      updateItem(globalIndex, "cityPlace", String(location));
+                    }
+                    
+                    // Show success toast
+                    toast({
+                      title: "🎉 Smart OCR Complete!",
+                      description: "All data has been extracted and filled in. Please review and adjust as needed.",
+                      duration: 5000,
+                    });
+                  }
+                }}
+                data-testid={`ocr-upload-${globalIndex}`}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Notes */}
       <div>
         <Label htmlFor={`${sectionPrefix}notes-${globalIndex}`}>Notes</Label>
@@ -1219,6 +1315,90 @@ export default function ExpenseModal({
       <div className="border-t pt-4">
         <h4 className="text-base font-medium mb-4">Bill Details</h4>
         
+        {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+        <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+            <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+              NEW!
+            </div>
+          </div>
+          <p className="text-sm text-green-700 mb-4 font-medium">
+            📸 Upload your ticket receipt and watch the magic happen - we'll automatically fill in all the details for you!
+          </p>
+          <OcrUpload
+            module="employee_claims"
+            claimTitle={claimTitle || "Expense Claim"}
+            onDataExtracted={(extractedData) => {
+              console.log('🔥 TICKET OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+              console.log('🔥 TICKET OCR DEBUG: extractedData:', extractedData);
+              console.log('🔥 TICKET OCR DEBUG: Current item before update:', items[globalIndex]);
+              
+              // 🔍 DEBUG: Check specific data fields
+              console.log('🔍 DEBUG amount:', extractedData?.amount);
+              console.log('🔍 DEBUG date:', extractedData?.date);  
+              console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+              console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+              
+              if (extractedData) {
+                console.log('🎯 Processing OCR data for Ticket form #', globalIndex + 1);
+                let extractedFields = [];
+                
+                // 💰 ENHANCED AMOUNT EXTRACTION 
+                if (extractedData.amount || extractedData.total || extractedData.totalAmount) {
+                  const amount = normalizeOcrAmount(extractedData.amount || extractedData.total || extractedData.totalAmount);
+                  console.log('🔥 UPDATING TICKET BILL AMOUNT:', amount, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billAmount", String(amount));
+                  extractedFields.push(`Bill Amount: ₹${amount}`);
+                }
+                
+                // 📅 ENHANCED DATE EXTRACTION
+                if (extractedData.date || extractedData.billDate || extractedData.invoiceDate) {
+                  const rawDate = extractedData.date || extractedData.billDate || extractedData.invoiceDate;
+                  console.log('🔥 UPDATING TICKET BILL DATE:', rawDate, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billDate", String(rawDate));
+                  extractedFields.push(`Bill Date: ${rawDate}`);
+                }
+                
+                // 📄 ENHANCED BILL NUMBER EXTRACTION  
+                if (extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number) {
+                  const billNo = extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number;
+                  console.log('🔥 UPDATING TICKET BILL NUMBER:', billNo, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billNo", String(billNo));
+                  extractedFields.push(`Bill No: ${billNo}`);
+                }
+                
+                // 🏢 VENDOR NAME EXTRACTION
+                if (extractedData.vendorName || extractedData.companyName || extractedData.merchantName) {
+                  const vendorName = extractedData.vendorName || extractedData.companyName || extractedData.merchantName;
+                  console.log('🔥 UPDATING TICKET VENDOR NAME:', vendorName, 'for index:', globalIndex);
+                  updateItem(globalIndex, "vendorName", String(vendorName));
+                  extractedFields.push(`Vendor: ${vendorName}`);
+                }
+                
+                // Show success toast
+                if (extractedFields.length > 0) {
+                  toast({
+                    title: `🎉 OCR Complete for Ticket #${globalIndex + 1}!`,
+                    description: `Extracted: ${extractedFields.join(', ')}`,
+                    duration: 5000,
+                  });
+                } else {
+                  toast({
+                    title: "⚠️ OCR Complete",
+                    description: `No usable data could be extracted from this ticket for #${globalIndex + 1}.`,
+                    variant: "destructive",
+                  });
+                }
+                
+                console.log('🔥 FINAL ITEM STATE after Ticket OCR for index', globalIndex, ':', items[globalIndex]);
+              }
+            }}
+            data-testid={`ocr-upload-ticket-${globalIndex}`}
+          />
+        </div>
+        
         <div className="mb-4">
           <Label className="text-sm font-medium">Supporting Document Available</Label>
           <div className="flex items-center gap-6 mt-2">
@@ -1247,37 +1427,335 @@ export default function ExpenseModal({
             <span className="text-sm text-gray-500">(If Self Attested, select 'No')</span>
           </div>
           
-          {/* Supporting Document Details - Shows when Supporting Document is "Yes" */}
-          {item.supportingDocumentAvailable === 'yes' && (
+          {/* DISABLED: Supporting Document Details moved to main Bill Details */}
+          {false && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
               <h5 className="text-sm font-medium text-blue-800 mb-3">Supporting Document Details</h5>
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+              <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+                  <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                    NEW!
+                  </div>
+                </div>
+                <p className="text-sm text-green-700 mb-4 font-medium">
+                  📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+                </p>
+                <OcrUpload
+                  module="employee_claims"
+                  claimTitle={claimTitle || "Expense Claim"}
+                  onDataExtracted={(extractedData) => {
+                    console.log('🔥 NESTED FORM OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+                    console.log('🔥 NESTED FORM OCR DEBUG: extractedData:', extractedData);
+                    console.log('🔥 NESTED FORM OCR DEBUG: Current item before update:', items[globalIndex]);
+                    
+                    // 🔍 DEBUG: Check specific data fields
+                    console.log('🔍 DEBUG amount:', extractedData?.amount);
+                    console.log('🔍 DEBUG date:', extractedData?.date);  
+                    console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+                    console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+                    
+                    if (extractedData) {
+                      console.log('🎯 Processing OCR data for nested form item #', globalIndex + 1);
+                      
+                      // Track extracted fields for user feedback
+                      const extractedFields = [];
+                      
+                      // 📋 Show document type if detected
+                      if (extractedData.documentType && extractedData.documentType !== 'unknown') {
+                        toast({
+                          title: `📋 Document Type: ${extractedData.documentType.replace('_', ' ').toUpperCase()}`,
+                          description: `Detected as ${extractedData.documentType} - using specialized extraction patterns`,
+                          duration: 3000,
+                        });
+                      }
+                      
+                      // 💰 ENHANCED AMOUNT EXTRACTION - Multiple strategies
+                      if (extractedData.amount || extractedData.total || extractedData.billAmount || extractedData.totalAmount) {
+                        const rawAmount = extractedData.amount || extractedData.total || extractedData.billAmount || extractedData.totalAmount;
+                        const normalizedAmount = normalizeOcrAmount(rawAmount);
+                        if (normalizedAmount) {
+                          console.log('🔥 UPDATING AMOUNT:', normalizedAmount, 'for index:', globalIndex);
+                          updateItem(globalIndex, "amount", normalizedAmount);
+                          updateItem(globalIndex, "billAmount", normalizedAmount); // Set billAmount too  
+                          extractedFields.push(`Amount: ₹${normalizedAmount}`);
+                        }
+                      }
+                      
+                      // 📅 ENHANCED DATE EXTRACTION 
+                      if (extractedData.date || extractedData.billDate) {
+                        const date = extractedData.date || extractedData.billDate;
+                        try {
+                          const dateObj = new Date(date);
+                          if (!isNaN(dateObj.getTime())) {
+                            const formattedDate = dateObj.toISOString().split('T')[0];
+                            console.log('🔥 UPDATING DATES:', formattedDate, 'for index:', globalIndex);
+                            updateItem(globalIndex, "billDate", formattedDate);
+                            updateItem(globalIndex, "date", formattedDate);
+                            updateItem(globalIndex, "fromDate", formattedDate);
+                            updateItem(globalIndex, "toDate", formattedDate);
+                            updateItem(globalIndex, "spentDate", formattedDate);
+                            extractedFields.push(`Date: ${formattedDate}`);
+                          }
+                        } catch (e) {
+                          console.log('Date parsing error:', e);
+                        }
+                      }
+                      
+                      // 📄 ENHANCED BILL NUMBER EXTRACTION  
+                      if (extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number) {
+                        const billNo = extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number;
+                        console.log('🔥 UPDATING BILL NUMBER:', billNo, 'for index:', globalIndex);
+                        updateItem(globalIndex, "billNo", String(billNo));
+                        extractedFields.push(`Bill No: ${billNo}`);
+                      }
+                      
+                      // This logic is handled above in the main amount extraction
+                      
+                      // 🏪 ENHANCED VENDOR NAME EXTRACTION
+                      if (extractedData.vendor || extractedData.vendorName || extractedData.merchant || extractedData.client) {
+                        const vendor = extractedData.vendor || extractedData.vendorName || extractedData.merchant || extractedData.client;
+                        console.log('🔥 UPDATING VENDOR NAME:', vendor, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorName", String(vendor));
+                        extractedFields.push(`Vendor: ${vendor}`);
+                      }
+                      
+                      // 📝 ENHANCED DESCRIPTION EXTRACTION
+                      if (extractedData.description || extractedData.notes) {
+                        const desc = extractedData.description || extractedData.notes;
+                        console.log('🔥 UPDATING DESCRIPTION:', desc, 'for index:', globalIndex);
+                        updateItem(globalIndex, "description", String(desc));
+                        updateItem(globalIndex, "notes", String(desc));
+                        extractedFields.push(`Description: ${desc.substring(0, 30)}...`);
+                      }
+                      
+                      if (extractedData.location || extractedData.place || extractedData.city) {
+                        const location = extractedData.location || extractedData.place || extractedData.city;
+                        console.log('🔥 UPDATING CITY PLACE:', location, 'for index:', globalIndex);
+                        updateItem(globalIndex, "cityPlace", String(location));
+                        extractedFields.push(`Location: ${location}`);
+                      }
+                      
+                      // 🏠 VENDOR ADDRESS EXTRACTION  
+                      if (extractedData.address || extractedData.vendorAddress) {
+                        const address = extractedData.address || extractedData.vendorAddress;
+                        console.log('🔥 UPDATING VENDOR ADDRESS:', address, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorAddress", String(address));
+                        extractedFields.push(`Address: ${address.substring(0, 30)}...`);
+                      }
+                      
+                      // 📋 PAN NUMBER EXTRACTION
+                      if (extractedData.pan || extractedData.panNumber) {
+                        const pan = extractedData.pan || extractedData.panNumber;
+                        console.log('🔥 UPDATING VENDOR PAN:', pan, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorPan", String(pan));
+                        extractedFields.push(`PAN: ${pan}`);
+                      }
+                      
+                      // 📄 FULL INVOICE NUMBER EXTRACTION
+                      if (extractedData.invoiceNumber || extractedData.fullInvoiceNumber) {
+                        const invoice = extractedData.invoiceNumber || extractedData.fullInvoiceNumber;
+                        console.log('🔥 UPDATING INVOICE NUMBER:', invoice, 'for index:', globalIndex);
+                        updateItem(globalIndex, "billNo", String(invoice));
+                        extractedFields.push(`Invoice: ${invoice}`);
+                      }
+
+                      // 🧾 GST DETAILS MAPPING (Same as Vendor Claims) with normalization
+                      if (extractedData.gstin || extractedData.gst) {
+                        const gstin = extractedData.gstin || extractedData.gst;
+                        console.log('🔥 UPDATING VENDOR GSTIN:', gstin, 'for index:', globalIndex);
+                        updateItem(globalIndex, "gstin", String(gstin));
+                        updateItem(globalIndex, "vendorGstin", String(gstin)); // Map to new database field
+                        extractedFields.push(`GST: ${gstin}`);
+                      }
+                      
+                      // 💰 GST AMOUNT CALCULATIONS
+                      let totalGst = 0;
+                      
+                      if (extractedData.cgst || extractedData.cgstAmount) {
+                        const rawCgst = extractedData.cgst || extractedData.cgstAmount;
+                        const normalizedCgst = normalizeOcrAmount(rawCgst);
+                        if (normalizedCgst) {
+                          console.log('🔥 UPDATING CGST AMOUNT:', normalizedCgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated  
+                          // updateItem(globalIndex, "cgstAmount", String(normalizedCgst));
+                          totalGst += normalizedCgst;
+                          extractedFields.push(`CGST: ₹${normalizedCgst}`);
+                        }
+                      }
+                      
+                      if (extractedData.sgst || extractedData.sgstAmount) {
+                        const rawSgst = extractedData.sgst || extractedData.sgstAmount;
+                        const normalizedSgst = normalizeOcrAmount(rawSgst);
+                        if (normalizedSgst) {
+                          console.log('🔥 UPDATING SGST AMOUNT:', normalizedSgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated
+                          // updateItem(globalIndex, "sgstAmount", String(normalizedSgst));
+                          totalGst += normalizedSgst;
+                          extractedFields.push(`SGST: ₹${normalizedSgst}`);
+                        }
+                      }
+                      
+                      if (extractedData.igst || extractedData.igstAmount) {
+                        const rawIgst = extractedData.igst || extractedData.igstAmount;
+                        const normalizedIgst = normalizeOcrAmount(rawIgst);
+                        if (normalizedIgst) {
+                          console.log('🔥 UPDATING IGST AMOUNT:', normalizedIgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated
+                          // updateItem(globalIndex, "igstAmount", String(normalizedIgst));
+                          totalGst += normalizedIgst;
+                          extractedFields.push(`IGST: ₹${normalizedIgst}`);
+                        }
+                      }
+                      
+                      // Update total GST amount
+                      if (totalGst > 0) {
+                        console.log('🔥 UPDATING TOTAL GST AMOUNT:', totalGst, 'for index:', globalIndex);
+                        // TODO: Add to form state when types are updated
+                        // updateItem(globalIndex, "gstAmount", String(totalGst));
+                        extractedFields.push(`Total GST: ₹${totalGst}`);
+                      }
+                      
+                      // 📊 ENHANCED SUCCESS FEEDBACK FOR NESTED FORMS
+                      const confidence = extractedData.confidence;
+                      const ambiguousFields = extractedData.ambiguousFields;
+                      
+                      // Show immediate feedback about what was extracted
+                      if (extractedFields.length > 0) {
+                        console.log('🔥 SUCCESSFULLY EXTRACTED FIELDS:', extractedFields);
+                        
+                        let description = `Populated: ${extractedFields.join(', ')}`;
+                        let variant = "default";
+                        
+                        if (confidence?.overall) {
+                          const overallPercent = Math.round(confidence.overall * 100);
+                          description += ` | 📊 Confidence: ${overallPercent}%`;
+                          
+                          if (overallPercent < 70) {
+                            description += " (Please verify)";
+                            variant = "destructive";
+                          } else if (overallPercent >= 90) {
+                            description += " (High confidence)";
+                          }
+                        }
+                        
+                        // Show success toast with confidence indicator
+                        toast({
+                          title: `🎉 OCR Complete for Item #${globalIndex + 1}!`,
+                          description,
+                          duration: 5000,
+                          variant: variant as any,
+                        });
+                      } else {
+                        // No fields extracted
+                        toast({
+                          title: "⚠️ OCR Complete",
+                          description: `No usable data could be extracted from this document for Item #${globalIndex + 1}.`,
+                          variant: "destructive",
+                        });
+                      }
+                      
+                      // Force form state update to ensure UI refreshes
+                      console.log('🔥 FINAL ITEM STATE after OCR for index', globalIndex, ':', items[globalIndex]);
+                      
+                      // ⚠️ Show ambiguous field warnings
+                      if (ambiguousFields && ambiguousFields.length > 0) {
+                        setTimeout(() => {
+                          ambiguousFields.forEach((field: any, index: number) => {
+                            setTimeout(() => {
+                              toast({
+                                title: `⚠️ Uncertain: ${field.field.toUpperCase()}`,
+                                description: `${field.reason}. Please verify: ${field.possibleValues.join(' OR ')}`,
+                                variant: "destructive",
+                                duration: 8000,
+                              });
+                            }, index * 500); // Stagger the warnings
+                          });
+                        }, 1500);
+                      }
+                    }
+                  }}
+                  data-testid={`ocr-upload-${globalIndex}`}
+                />
+              </div>
+              
+              {/* Advanced OCR-Extracted Fields Only (No Duplicates) */}
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                
                 <div>
-                  <Label htmlFor={`${sectionPrefix}bill-no-${globalIndex}`} className="text-sm font-medium">
-                    Bill No
+                  <Label htmlFor={`${sectionPrefix}invoice-number-${globalIndex}`} className="text-sm font-medium">
+                    Invoice Number
                   </Label>
                   <Input
-                    id={`${sectionPrefix}bill-no-${globalIndex}`}
+                    id={`${sectionPrefix}invoice-number-${globalIndex}`}
                     value={item.billNo || ''}
                     onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
-                    placeholder="Bill No."
+                    placeholder="Invoice Number"
                     className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-no-${globalIndex}`}
+                    data-testid={`input-${sectionPrefix}invoice-number-${globalIndex}`}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor={`${sectionPrefix}vendor-address-${globalIndex}`} className="text-sm font-medium">
+                    Vendor Address
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}vendor-address-${globalIndex}`}
+                    value={item.vendorAddress || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorAddress", e.target.value)}
+                    placeholder="Vendor Address"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}vendor-address-${globalIndex}`}
                   />
                 </div>
                 
                 <div>
-                  <Label htmlFor={`${sectionPrefix}bill-date-${globalIndex}`} className="text-sm font-medium">
-                    Bill Date
+                  <Label htmlFor={`${sectionPrefix}vendor-pan-${globalIndex}`} className="text-sm font-medium">
+                    Vendor PAN
                   </Label>
                   <Input
-                    id={`${sectionPrefix}bill-date-${globalIndex}`}
-                    type="date"
-                    value={item.billDate || ''}
-                    onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
+                    id={`${sectionPrefix}vendor-pan-${globalIndex}`}
+                    value={item.vendorPan || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorPan", e.target.value)}
+                    placeholder="Vendor PAN"
                     className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-date-${globalIndex}`}
+                    data-testid={`input-${sectionPrefix}vendor-pan-${globalIndex}`}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor={`${sectionPrefix}vendor-gstin-${globalIndex}`} className="text-sm font-medium">
+                    Vendor GSTIN
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}vendor-gstin-${globalIndex}`}
+                    value={item.vendorGstin || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorGstin", e.target.value)}
+                    placeholder="Vendor GSTIN"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}vendor-gstin-${globalIndex}`}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor={`${sectionPrefix}gstin-${globalIndex}`} className="text-sm font-medium">
+                    GSTIN
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}gstin-${globalIndex}`}
+                    value={item.gstin || ''}
+                    onChange={(e) => updateItem(globalIndex, "gstin", e.target.value)}
+                    placeholder="GSTIN"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}gstin-${globalIndex}`}
                   />
                 </div>
               </div>
@@ -1407,6 +1885,43 @@ export default function ExpenseModal({
           </div>
         </div>
         
+        {/* Bill Detail Fields - Always Visible for Manual Entry & OCR Auto-Fill */}
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div>
+            <Label htmlFor={`${sectionPrefix}billNo-${globalIndex}`}>Bill No</Label>
+            <Input
+              id={`${sectionPrefix}billNo-${globalIndex}`}
+              value={item.billNo || ''}
+              onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
+              placeholder="Bill No"
+              data-testid={`input-${sectionPrefix}billNo-${globalIndex}`}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${sectionPrefix}billDate-${globalIndex}`}>Bill Date</Label>
+            <Input
+              id={`${sectionPrefix}billDate-${globalIndex}`}
+              type="date"
+              value={item.billDate || ''}
+              onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
+              data-testid={`input-${sectionPrefix}billDate-${globalIndex}`}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${sectionPrefix}billAmount-${globalIndex}`}>Bill Amount</Label>
+            <Input
+              id={`${sectionPrefix}billAmount-${globalIndex}`}
+              type="number"
+              step="0.01"
+              value={item.billAmount || ''}
+              onChange={(e) => updateItem(globalIndex, "billAmount", e.target.value)}
+              placeholder="Bill Amount"
+              data-testid={`input-${sectionPrefix}billAmount-${globalIndex}`}
+            />
+          </div>
+        </div>
+
+        {/* Vendor Name and Spent Date */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <Label htmlFor={`${sectionPrefix}vendorName-${globalIndex}`}>Vendor Name</Label>
@@ -1641,6 +2156,90 @@ export default function ExpenseModal({
       <div className="border-t pt-4">
         <h4 className="text-base font-medium mb-4">Bill Details</h4>
         
+        {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+        <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+            <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+              NEW!
+            </div>
+          </div>
+          <p className="text-sm text-green-700 mb-4 font-medium">
+            📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+          </p>
+          <OcrUpload
+            module="employee_claims"
+            claimTitle={claimTitle || "Expense Claim"}
+            onDataExtracted={(extractedData) => {
+              console.log('🔥 FORM OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+              console.log('🔥 FORM OCR DEBUG: extractedData:', extractedData);
+              console.log('🔥 FORM OCR DEBUG: Current item before update:', items[globalIndex]);
+              
+              // 🔍 DEBUG: Check specific data fields
+              console.log('🔍 DEBUG amount:', extractedData?.amount);
+              console.log('🔍 DEBUG date:', extractedData?.date);  
+              console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+              console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+              
+              if (extractedData) {
+                console.log('🎯 Processing OCR data for form #', globalIndex + 1);
+                let extractedFields = [];
+                
+                // 💰 ENHANCED AMOUNT EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.amount || extractedData.billAmount || extractedData.total) {
+                  const amount = normalizeOcrAmount(extractedData.amount || extractedData.billAmount || extractedData.total);
+                  console.log('🔥 UPDATING BILL AMOUNT:', amount, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billAmount", String(amount));
+                  extractedFields.push(`Bill Amount: ₹${amount}`);
+                }
+                
+                // 📅 ENHANCED DATE EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.date || extractedData.billDate || extractedData.invoiceDate) {
+                  const rawDate = extractedData.date || extractedData.billDate || extractedData.invoiceDate;
+                  console.log('🔥 UPDATING BILL DATE:', rawDate, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billDate", String(rawDate));
+                  extractedFields.push(`Bill Date: ${rawDate}`);
+                }
+                
+                // 📄 ENHANCED BILL NUMBER EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.invoiceNumber || extractedData.billNo || extractedData.number) {
+                  const billNo = extractedData.invoiceNumber || extractedData.billNo || extractedData.number;
+                  console.log('🔥 UPDATING BILL NUMBER:', billNo, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billNo", String(billNo));
+                  extractedFields.push(`Bill No: ${billNo}`);
+                }
+                
+                // 🏢 VENDOR NAME EXTRACTION
+                if (extractedData.vendorName || extractedData.companyName || extractedData.merchantName) {
+                  const vendorName = extractedData.vendorName || extractedData.companyName || extractedData.merchantName;
+                  console.log('🔥 UPDATING VENDOR NAME:', vendorName, 'for index:', globalIndex);
+                  updateItem(globalIndex, "vendorName", String(vendorName));
+                  extractedFields.push(`Vendor: ${vendorName}`);
+                }
+                
+                // Show success toast
+                if (extractedFields.length > 0) {
+                  toast({
+                    title: `🎉 OCR Complete for Form #${globalIndex + 1}!`,
+                    description: `Extracted: ${extractedFields.join(', ')}`,
+                    duration: 5000,
+                  });
+                } else {
+                  toast({
+                    title: "⚠️ OCR Complete",
+                    description: `No usable data could be extracted from this receipt for #${globalIndex + 1}.`,
+                    variant: "destructive",
+                  });
+                }
+                
+                console.log('🔥 FINAL ITEM STATE after OCR for index', globalIndex, ':', items[globalIndex]);
+              }
+            }}
+            data-testid={`ocr-upload-form-${globalIndex}`}
+          />
+        </div>
+        
         <div className="mb-4">
           <Label className="text-sm font-medium">Supporting Document Available</Label>
           <div className="flex items-center gap-6 mt-2">
@@ -1669,37 +2268,335 @@ export default function ExpenseModal({
             <span className="text-sm text-gray-500">(If Self Attested, select 'No')</span>
           </div>
           
-          {/* Supporting Document Details - Shows when Supporting Document is "Yes" */}
-          {item.supportingDocumentAvailable === 'yes' && (
+          {/* DISABLED: Supporting Document Details moved to main Bill Details */}
+          {false && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
               <h5 className="text-sm font-medium text-blue-800 mb-3">Supporting Document Details</h5>
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+              <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+                  <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                    NEW!
+                  </div>
+                </div>
+                <p className="text-sm text-green-700 mb-4 font-medium">
+                  📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+                </p>
+                <OcrUpload
+                  module="employee_claims"
+                  claimTitle={claimTitle || "Expense Claim"}
+                  onDataExtracted={(extractedData) => {
+                    console.log('🔥 NESTED FORM OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+                    console.log('🔥 NESTED FORM OCR DEBUG: extractedData:', extractedData);
+                    console.log('🔥 NESTED FORM OCR DEBUG: Current item before update:', items[globalIndex]);
+                    
+                    // 🔍 DEBUG: Check specific data fields
+                    console.log('🔍 DEBUG amount:', extractedData?.amount);
+                    console.log('🔍 DEBUG date:', extractedData?.date);  
+                    console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+                    console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+                    
+                    if (extractedData) {
+                      console.log('🎯 Processing OCR data for nested form item #', globalIndex + 1);
+                      
+                      // Track extracted fields for user feedback
+                      const extractedFields = [];
+                      
+                      // 📋 Show document type if detected
+                      if (extractedData.documentType && extractedData.documentType !== 'unknown') {
+                        toast({
+                          title: `📋 Document Type: ${extractedData.documentType.replace('_', ' ').toUpperCase()}`,
+                          description: `Detected as ${extractedData.documentType} - using specialized extraction patterns`,
+                          duration: 3000,
+                        });
+                      }
+                      
+                      // 💰 ENHANCED AMOUNT EXTRACTION - Multiple strategies
+                      if (extractedData.amount || extractedData.total || extractedData.billAmount || extractedData.totalAmount) {
+                        const rawAmount = extractedData.amount || extractedData.total || extractedData.billAmount || extractedData.totalAmount;
+                        const normalizedAmount = normalizeOcrAmount(rawAmount);
+                        if (normalizedAmount) {
+                          console.log('🔥 UPDATING AMOUNT:', normalizedAmount, 'for index:', globalIndex);
+                          updateItem(globalIndex, "amount", normalizedAmount);
+                          updateItem(globalIndex, "billAmount", normalizedAmount); // Set billAmount too  
+                          extractedFields.push(`Amount: ₹${normalizedAmount}`);
+                        }
+                      }
+                      
+                      // 📅 ENHANCED DATE EXTRACTION 
+                      if (extractedData.date || extractedData.billDate) {
+                        const date = extractedData.date || extractedData.billDate;
+                        try {
+                          const dateObj = new Date(date);
+                          if (!isNaN(dateObj.getTime())) {
+                            const formattedDate = dateObj.toISOString().split('T')[0];
+                            console.log('🔥 UPDATING DATES:', formattedDate, 'for index:', globalIndex);
+                            updateItem(globalIndex, "billDate", formattedDate);
+                            updateItem(globalIndex, "date", formattedDate);
+                            updateItem(globalIndex, "fromDate", formattedDate);
+                            updateItem(globalIndex, "toDate", formattedDate);
+                            updateItem(globalIndex, "spentDate", formattedDate);
+                            extractedFields.push(`Date: ${formattedDate}`);
+                          }
+                        } catch (e) {
+                          console.log('Date parsing error:', e);
+                        }
+                      }
+                      
+                      // 📄 ENHANCED BILL NUMBER EXTRACTION  
+                      if (extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number) {
+                        const billNo = extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number;
+                        console.log('🔥 UPDATING BILL NUMBER:', billNo, 'for index:', globalIndex);
+                        updateItem(globalIndex, "billNo", String(billNo));
+                        extractedFields.push(`Bill No: ${billNo}`);
+                      }
+                      
+                      // This logic is handled above in the main amount extraction
+                      
+                      // 🏪 ENHANCED VENDOR NAME EXTRACTION
+                      if (extractedData.vendor || extractedData.vendorName || extractedData.merchant || extractedData.client) {
+                        const vendor = extractedData.vendor || extractedData.vendorName || extractedData.merchant || extractedData.client;
+                        console.log('🔥 UPDATING VENDOR NAME:', vendor, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorName", String(vendor));
+                        extractedFields.push(`Vendor: ${vendor}`);
+                      }
+                      
+                      // 📝 ENHANCED DESCRIPTION EXTRACTION
+                      if (extractedData.description || extractedData.notes) {
+                        const desc = extractedData.description || extractedData.notes;
+                        console.log('🔥 UPDATING DESCRIPTION:', desc, 'for index:', globalIndex);
+                        updateItem(globalIndex, "description", String(desc));
+                        updateItem(globalIndex, "notes", String(desc));
+                        extractedFields.push(`Description: ${desc.substring(0, 30)}...`);
+                      }
+                      
+                      if (extractedData.location || extractedData.place || extractedData.city) {
+                        const location = extractedData.location || extractedData.place || extractedData.city;
+                        console.log('🔥 UPDATING CITY PLACE:', location, 'for index:', globalIndex);
+                        updateItem(globalIndex, "cityPlace", String(location));
+                        extractedFields.push(`Location: ${location}`);
+                      }
+                      
+                      // 🏠 VENDOR ADDRESS EXTRACTION  
+                      if (extractedData.address || extractedData.vendorAddress) {
+                        const address = extractedData.address || extractedData.vendorAddress;
+                        console.log('🔥 UPDATING VENDOR ADDRESS:', address, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorAddress", String(address));
+                        extractedFields.push(`Address: ${address.substring(0, 30)}...`);
+                      }
+                      
+                      // 📋 PAN NUMBER EXTRACTION
+                      if (extractedData.pan || extractedData.panNumber) {
+                        const pan = extractedData.pan || extractedData.panNumber;
+                        console.log('🔥 UPDATING VENDOR PAN:', pan, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorPan", String(pan));
+                        extractedFields.push(`PAN: ${pan}`);
+                      }
+                      
+                      // 📄 FULL INVOICE NUMBER EXTRACTION
+                      if (extractedData.invoiceNumber || extractedData.fullInvoiceNumber) {
+                        const invoice = extractedData.invoiceNumber || extractedData.fullInvoiceNumber;
+                        console.log('🔥 UPDATING INVOICE NUMBER:', invoice, 'for index:', globalIndex);
+                        updateItem(globalIndex, "billNo", String(invoice));
+                        extractedFields.push(`Invoice: ${invoice}`);
+                      }
+
+                      // 🧾 GST DETAILS MAPPING (Same as Vendor Claims) with normalization
+                      if (extractedData.gstin || extractedData.gst) {
+                        const gstin = extractedData.gstin || extractedData.gst;
+                        console.log('🔥 UPDATING VENDOR GSTIN:', gstin, 'for index:', globalIndex);
+                        updateItem(globalIndex, "gstin", String(gstin));
+                        updateItem(globalIndex, "vendorGstin", String(gstin)); // Map to new database field
+                        extractedFields.push(`GST: ${gstin}`);
+                      }
+                      
+                      // 💰 GST AMOUNT CALCULATIONS
+                      let totalGst = 0;
+                      
+                      if (extractedData.cgst || extractedData.cgstAmount) {
+                        const rawCgst = extractedData.cgst || extractedData.cgstAmount;
+                        const normalizedCgst = normalizeOcrAmount(rawCgst);
+                        if (normalizedCgst) {
+                          console.log('🔥 UPDATING CGST AMOUNT:', normalizedCgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated  
+                          // updateItem(globalIndex, "cgstAmount", String(normalizedCgst));
+                          totalGst += normalizedCgst;
+                          extractedFields.push(`CGST: ₹${normalizedCgst}`);
+                        }
+                      }
+                      
+                      if (extractedData.sgst || extractedData.sgstAmount) {
+                        const rawSgst = extractedData.sgst || extractedData.sgstAmount;
+                        const normalizedSgst = normalizeOcrAmount(rawSgst);
+                        if (normalizedSgst) {
+                          console.log('🔥 UPDATING SGST AMOUNT:', normalizedSgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated
+                          // updateItem(globalIndex, "sgstAmount", String(normalizedSgst));
+                          totalGst += normalizedSgst;
+                          extractedFields.push(`SGST: ₹${normalizedSgst}`);
+                        }
+                      }
+                      
+                      if (extractedData.igst || extractedData.igstAmount) {
+                        const rawIgst = extractedData.igst || extractedData.igstAmount;
+                        const normalizedIgst = normalizeOcrAmount(rawIgst);
+                        if (normalizedIgst) {
+                          console.log('🔥 UPDATING IGST AMOUNT:', normalizedIgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated
+                          // updateItem(globalIndex, "igstAmount", String(normalizedIgst));
+                          totalGst += normalizedIgst;
+                          extractedFields.push(`IGST: ₹${normalizedIgst}`);
+                        }
+                      }
+                      
+                      // Update total GST amount
+                      if (totalGst > 0) {
+                        console.log('🔥 UPDATING TOTAL GST AMOUNT:', totalGst, 'for index:', globalIndex);
+                        // TODO: Add to form state when types are updated
+                        // updateItem(globalIndex, "gstAmount", String(totalGst));
+                        extractedFields.push(`Total GST: ₹${totalGst}`);
+                      }
+                      
+                      // 📊 ENHANCED SUCCESS FEEDBACK FOR NESTED FORMS
+                      const confidence = extractedData.confidence;
+                      const ambiguousFields = extractedData.ambiguousFields;
+                      
+                      // Show immediate feedback about what was extracted
+                      if (extractedFields.length > 0) {
+                        console.log('🔥 SUCCESSFULLY EXTRACTED FIELDS:', extractedFields);
+                        
+                        let description = `Populated: ${extractedFields.join(', ')}`;
+                        let variant = "default";
+                        
+                        if (confidence?.overall) {
+                          const overallPercent = Math.round(confidence.overall * 100);
+                          description += ` | 📊 Confidence: ${overallPercent}%`;
+                          
+                          if (overallPercent < 70) {
+                            description += " (Please verify)";
+                            variant = "destructive";
+                          } else if (overallPercent >= 90) {
+                            description += " (High confidence)";
+                          }
+                        }
+                        
+                        // Show success toast with confidence indicator
+                        toast({
+                          title: `🎉 OCR Complete for Item #${globalIndex + 1}!`,
+                          description,
+                          duration: 5000,
+                          variant: variant as any,
+                        });
+                      } else {
+                        // No fields extracted
+                        toast({
+                          title: "⚠️ OCR Complete",
+                          description: `No usable data could be extracted from this document for Item #${globalIndex + 1}.`,
+                          variant: "destructive",
+                        });
+                      }
+                      
+                      // Force form state update to ensure UI refreshes
+                      console.log('🔥 FINAL ITEM STATE after OCR for index', globalIndex, ':', items[globalIndex]);
+                      
+                      // ⚠️ Show ambiguous field warnings
+                      if (ambiguousFields && ambiguousFields.length > 0) {
+                        setTimeout(() => {
+                          ambiguousFields.forEach((field: any, index: number) => {
+                            setTimeout(() => {
+                              toast({
+                                title: `⚠️ Uncertain: ${field.field.toUpperCase()}`,
+                                description: `${field.reason}. Please verify: ${field.possibleValues.join(' OR ')}`,
+                                variant: "destructive",
+                                duration: 8000,
+                              });
+                            }, index * 500); // Stagger the warnings
+                          });
+                        }, 1500);
+                      }
+                    }
+                  }}
+                  data-testid={`ocr-upload-${globalIndex}`}
+                />
+              </div>
+              
+              {/* Advanced OCR-Extracted Fields Only (No Duplicates) */}
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                
                 <div>
-                  <Label htmlFor={`${sectionPrefix}bill-no-${globalIndex}`} className="text-sm font-medium">
-                    Bill No
+                  <Label htmlFor={`${sectionPrefix}invoice-number-${globalIndex}`} className="text-sm font-medium">
+                    Invoice Number
                   </Label>
                   <Input
-                    id={`${sectionPrefix}bill-no-${globalIndex}`}
+                    id={`${sectionPrefix}invoice-number-${globalIndex}`}
                     value={item.billNo || ''}
                     onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
-                    placeholder="Bill No."
+                    placeholder="Invoice Number"
                     className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-no-${globalIndex}`}
+                    data-testid={`input-${sectionPrefix}invoice-number-${globalIndex}`}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor={`${sectionPrefix}vendor-address-${globalIndex}`} className="text-sm font-medium">
+                    Vendor Address
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}vendor-address-${globalIndex}`}
+                    value={item.vendorAddress || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorAddress", e.target.value)}
+                    placeholder="Vendor Address"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}vendor-address-${globalIndex}`}
                   />
                 </div>
                 
                 <div>
-                  <Label htmlFor={`${sectionPrefix}bill-date-${globalIndex}`} className="text-sm font-medium">
-                    Bill Date
+                  <Label htmlFor={`${sectionPrefix}vendor-pan-${globalIndex}`} className="text-sm font-medium">
+                    Vendor PAN
                   </Label>
                   <Input
-                    id={`${sectionPrefix}bill-date-${globalIndex}`}
-                    type="date"
-                    value={item.billDate || ''}
-                    onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
+                    id={`${sectionPrefix}vendor-pan-${globalIndex}`}
+                    value={item.vendorPan || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorPan", e.target.value)}
+                    placeholder="Vendor PAN"
                     className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-date-${globalIndex}`}
+                    data-testid={`input-${sectionPrefix}vendor-pan-${globalIndex}`}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor={`${sectionPrefix}vendor-gstin-${globalIndex}`} className="text-sm font-medium">
+                    Vendor GSTIN
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}vendor-gstin-${globalIndex}`}
+                    value={item.vendorGstin || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorGstin", e.target.value)}
+                    placeholder="Vendor GSTIN"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}vendor-gstin-${globalIndex}`}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor={`${sectionPrefix}gstin-${globalIndex}`} className="text-sm font-medium">
+                    GSTIN
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}gstin-${globalIndex}`}
+                    value={item.gstin || ''}
+                    onChange={(e) => updateItem(globalIndex, "gstin", e.target.value)}
+                    placeholder="GSTIN"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}gstin-${globalIndex}`}
                   />
                 </div>
               </div>
@@ -1829,6 +2726,43 @@ export default function ExpenseModal({
           </div>
         </div>
         
+        {/* Bill Detail Fields - Always Visible for Manual Entry & OCR Auto-Fill */}
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div>
+            <Label htmlFor={`${sectionPrefix}billNo-${globalIndex}`}>Bill No</Label>
+            <Input
+              id={`${sectionPrefix}billNo-${globalIndex}`}
+              value={item.billNo || ''}
+              onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
+              placeholder="Bill No"
+              data-testid={`input-${sectionPrefix}billNo-${globalIndex}`}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${sectionPrefix}billDate-${globalIndex}`}>Bill Date</Label>
+            <Input
+              id={`${sectionPrefix}billDate-${globalIndex}`}
+              type="date"
+              value={item.billDate || ''}
+              onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
+              data-testid={`input-${sectionPrefix}billDate-${globalIndex}`}
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${sectionPrefix}billAmount-${globalIndex}`}>Bill Amount</Label>
+            <Input
+              id={`${sectionPrefix}billAmount-${globalIndex}`}
+              type="number"
+              step="0.01"
+              value={item.billAmount || ''}
+              onChange={(e) => updateItem(globalIndex, "billAmount", e.target.value)}
+              placeholder="Bill Amount"
+              data-testid={`input-${sectionPrefix}billAmount-${globalIndex}`}
+            />
+          </div>
+        </div>
+
+        {/* Vendor Name and Spent Date */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <Label htmlFor={`${sectionPrefix}vendorName-${globalIndex}`}>Vendor Name</Label>
@@ -2149,6 +3083,90 @@ export default function ExpenseModal({
       <div className="border-t pt-4">
         <h4 className="text-base font-medium mb-4">Bill Details</h4>
         
+        {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+        <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+            <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+              NEW!
+            </div>
+          </div>
+          <p className="text-sm text-green-700 mb-4 font-medium">
+            📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+          </p>
+          <OcrUpload
+            module="employee_claims"
+            claimTitle={claimTitle || "Expense Claim"}
+            onDataExtracted={(extractedData) => {
+              console.log('🔥 FORM OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+              console.log('🔥 FORM OCR DEBUG: extractedData:', extractedData);
+              console.log('🔥 FORM OCR DEBUG: Current item before update:', items[globalIndex]);
+              
+              // 🔍 DEBUG: Check specific data fields
+              console.log('🔍 DEBUG amount:', extractedData?.amount);
+              console.log('🔍 DEBUG date:', extractedData?.date);  
+              console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+              console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+              
+              if (extractedData) {
+                console.log('🎯 Processing OCR data for form #', globalIndex + 1);
+                let extractedFields = [];
+                
+                // 💰 ENHANCED AMOUNT EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.amount || extractedData.billAmount || extractedData.total) {
+                  const amount = normalizeOcrAmount(extractedData.amount || extractedData.billAmount || extractedData.total);
+                  console.log('🔥 UPDATING BILL AMOUNT:', amount, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billAmount", String(amount));
+                  extractedFields.push(`Bill Amount: ₹${amount}`);
+                }
+                
+                // 📅 ENHANCED DATE EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.date || extractedData.billDate || extractedData.invoiceDate) {
+                  const rawDate = extractedData.date || extractedData.billDate || extractedData.invoiceDate;
+                  console.log('🔥 UPDATING BILL DATE:', rawDate, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billDate", String(rawDate));
+                  extractedFields.push(`Bill Date: ${rawDate}`);
+                }
+                
+                // 📄 ENHANCED BILL NUMBER EXTRACTION (FIXED FIELD MAPPING)
+                if (extractedData.invoiceNumber || extractedData.billNo || extractedData.number) {
+                  const billNo = extractedData.invoiceNumber || extractedData.billNo || extractedData.number;
+                  console.log('🔥 UPDATING BILL NUMBER:', billNo, 'for index:', globalIndex);
+                  updateItem(globalIndex, "billNo", String(billNo));
+                  extractedFields.push(`Bill No: ${billNo}`);
+                }
+                
+                // 🏢 VENDOR NAME EXTRACTION
+                if (extractedData.vendorName || extractedData.companyName || extractedData.merchantName) {
+                  const vendorName = extractedData.vendorName || extractedData.companyName || extractedData.merchantName;
+                  console.log('🔥 UPDATING VENDOR NAME:', vendorName, 'for index:', globalIndex);
+                  updateItem(globalIndex, "vendorName", String(vendorName));
+                  extractedFields.push(`Vendor: ${vendorName}`);
+                }
+                
+                // Show success toast
+                if (extractedFields.length > 0) {
+                  toast({
+                    title: `🎉 OCR Complete for Form #${globalIndex + 1}!`,
+                    description: `Extracted: ${extractedFields.join(', ')}`,
+                    duration: 5000,
+                  });
+                } else {
+                  toast({
+                    title: "⚠️ OCR Complete",
+                    description: `No usable data could be extracted from this receipt for #${globalIndex + 1}.`,
+                    variant: "destructive",
+                  });
+                }
+                
+                console.log('🔥 FINAL ITEM STATE after OCR for index', globalIndex, ':', items[globalIndex]);
+              }
+            }}
+            data-testid={`ocr-upload-form-${globalIndex}`}
+          />
+        </div>
+        
         <div className="mb-4">
           <Label className="text-sm font-medium">Supporting Document Available</Label>
           <div className="flex items-center gap-6 mt-2">
@@ -2177,37 +3195,335 @@ export default function ExpenseModal({
             <span className="text-sm text-gray-500">(If Self Attested, select 'No')</span>
           </div>
           
-          {/* Supporting Document Details - Shows when Supporting Document is "Yes" */}
-          {item.supportingDocumentAvailable === 'yes' && (
+          {/* DISABLED: Supporting Document Details moved to main Bill Details */}
+          {false && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
               <h5 className="text-sm font-medium text-blue-800 mb-3">Supporting Document Details</h5>
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* 🎯 PROMINENT OCR UPLOAD SECTION */}
+              <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-xl shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <h6 className="text-lg font-bold text-green-800">🤖 Smart OCR Upload</h6>
+                  <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                    NEW!
+                  </div>
+                </div>
+                <p className="text-sm text-green-700 mb-4 font-medium">
+                  📸 Upload your receipt and watch the magic happen - we'll automatically fill in all the details for you!
+                </p>
+                <OcrUpload
+                  module="employee_claims"
+                  claimTitle={claimTitle || "Expense Claim"}
+                  onDataExtracted={(extractedData) => {
+                    console.log('🔥 NESTED FORM OCR DEBUG: Callback triggered for globalIndex:', globalIndex);
+                    console.log('🔥 NESTED FORM OCR DEBUG: extractedData:', extractedData);
+                    console.log('🔥 NESTED FORM OCR DEBUG: Current item before update:', items[globalIndex]);
+                    
+                    // 🔍 DEBUG: Check specific data fields
+                    console.log('🔍 DEBUG amount:', extractedData?.amount);
+                    console.log('🔍 DEBUG date:', extractedData?.date);  
+                    console.log('🔍 DEBUG invoiceNumber:', extractedData?.invoiceNumber);
+                    console.log('🔍 DEBUG vendorName:', extractedData?.vendorName);
+                    
+                    if (extractedData) {
+                      console.log('🎯 Processing OCR data for nested form item #', globalIndex + 1);
+                      
+                      // Track extracted fields for user feedback
+                      const extractedFields = [];
+                      
+                      // 📋 Show document type if detected
+                      if (extractedData.documentType && extractedData.documentType !== 'unknown') {
+                        toast({
+                          title: `📋 Document Type: ${extractedData.documentType.replace('_', ' ').toUpperCase()}`,
+                          description: `Detected as ${extractedData.documentType} - using specialized extraction patterns`,
+                          duration: 3000,
+                        });
+                      }
+                      
+                      // 💰 ENHANCED AMOUNT EXTRACTION - Multiple strategies
+                      if (extractedData.amount || extractedData.total || extractedData.billAmount || extractedData.totalAmount) {
+                        const rawAmount = extractedData.amount || extractedData.total || extractedData.billAmount || extractedData.totalAmount;
+                        const normalizedAmount = normalizeOcrAmount(rawAmount);
+                        if (normalizedAmount) {
+                          console.log('🔥 UPDATING AMOUNT:', normalizedAmount, 'for index:', globalIndex);
+                          updateItem(globalIndex, "amount", normalizedAmount);
+                          updateItem(globalIndex, "billAmount", normalizedAmount); // Set billAmount too  
+                          extractedFields.push(`Amount: ₹${normalizedAmount}`);
+                        }
+                      }
+                      
+                      // 📅 ENHANCED DATE EXTRACTION 
+                      if (extractedData.date || extractedData.billDate) {
+                        const date = extractedData.date || extractedData.billDate;
+                        try {
+                          const dateObj = new Date(date);
+                          if (!isNaN(dateObj.getTime())) {
+                            const formattedDate = dateObj.toISOString().split('T')[0];
+                            console.log('🔥 UPDATING DATES:', formattedDate, 'for index:', globalIndex);
+                            updateItem(globalIndex, "billDate", formattedDate);
+                            updateItem(globalIndex, "date", formattedDate);
+                            updateItem(globalIndex, "fromDate", formattedDate);
+                            updateItem(globalIndex, "toDate", formattedDate);
+                            updateItem(globalIndex, "spentDate", formattedDate);
+                            extractedFields.push(`Date: ${formattedDate}`);
+                          }
+                        } catch (e) {
+                          console.log('Date parsing error:', e);
+                        }
+                      }
+                      
+                      // 📄 ENHANCED BILL NUMBER EXTRACTION  
+                      if (extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number) {
+                        const billNo = extractedData.billNumber || extractedData.billNo || extractedData.invoiceNumber || extractedData.number;
+                        console.log('🔥 UPDATING BILL NUMBER:', billNo, 'for index:', globalIndex);
+                        updateItem(globalIndex, "billNo", String(billNo));
+                        extractedFields.push(`Bill No: ${billNo}`);
+                      }
+                      
+                      // This logic is handled above in the main amount extraction
+                      
+                      // 🏪 ENHANCED VENDOR NAME EXTRACTION
+                      if (extractedData.vendor || extractedData.vendorName || extractedData.merchant || extractedData.client) {
+                        const vendor = extractedData.vendor || extractedData.vendorName || extractedData.merchant || extractedData.client;
+                        console.log('🔥 UPDATING VENDOR NAME:', vendor, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorName", String(vendor));
+                        extractedFields.push(`Vendor: ${vendor}`);
+                      }
+                      
+                      // 📝 ENHANCED DESCRIPTION EXTRACTION
+                      if (extractedData.description || extractedData.notes) {
+                        const desc = extractedData.description || extractedData.notes;
+                        console.log('🔥 UPDATING DESCRIPTION:', desc, 'for index:', globalIndex);
+                        updateItem(globalIndex, "description", String(desc));
+                        updateItem(globalIndex, "notes", String(desc));
+                        extractedFields.push(`Description: ${desc.substring(0, 30)}...`);
+                      }
+                      
+                      if (extractedData.location || extractedData.place || extractedData.city) {
+                        const location = extractedData.location || extractedData.place || extractedData.city;
+                        console.log('🔥 UPDATING CITY PLACE:', location, 'for index:', globalIndex);
+                        updateItem(globalIndex, "cityPlace", String(location));
+                        extractedFields.push(`Location: ${location}`);
+                      }
+                      
+                      // 🏠 VENDOR ADDRESS EXTRACTION  
+                      if (extractedData.address || extractedData.vendorAddress) {
+                        const address = extractedData.address || extractedData.vendorAddress;
+                        console.log('🔥 UPDATING VENDOR ADDRESS:', address, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorAddress", String(address));
+                        extractedFields.push(`Address: ${address.substring(0, 30)}...`);
+                      }
+                      
+                      // 📋 PAN NUMBER EXTRACTION
+                      if (extractedData.pan || extractedData.panNumber) {
+                        const pan = extractedData.pan || extractedData.panNumber;
+                        console.log('🔥 UPDATING VENDOR PAN:', pan, 'for index:', globalIndex);
+                        updateItem(globalIndex, "vendorPan", String(pan));
+                        extractedFields.push(`PAN: ${pan}`);
+                      }
+                      
+                      // 📄 FULL INVOICE NUMBER EXTRACTION
+                      if (extractedData.invoiceNumber || extractedData.fullInvoiceNumber) {
+                        const invoice = extractedData.invoiceNumber || extractedData.fullInvoiceNumber;
+                        console.log('🔥 UPDATING INVOICE NUMBER:', invoice, 'for index:', globalIndex);
+                        updateItem(globalIndex, "billNo", String(invoice));
+                        extractedFields.push(`Invoice: ${invoice}`);
+                      }
+
+                      // 🧾 GST DETAILS MAPPING (Same as Vendor Claims) with normalization
+                      if (extractedData.gstin || extractedData.gst) {
+                        const gstin = extractedData.gstin || extractedData.gst;
+                        console.log('🔥 UPDATING VENDOR GSTIN:', gstin, 'for index:', globalIndex);
+                        updateItem(globalIndex, "gstin", String(gstin));
+                        updateItem(globalIndex, "vendorGstin", String(gstin)); // Map to new database field
+                        extractedFields.push(`GST: ${gstin}`);
+                      }
+                      
+                      // 💰 GST AMOUNT CALCULATIONS
+                      let totalGst = 0;
+                      
+                      if (extractedData.cgst || extractedData.cgstAmount) {
+                        const rawCgst = extractedData.cgst || extractedData.cgstAmount;
+                        const normalizedCgst = normalizeOcrAmount(rawCgst);
+                        if (normalizedCgst) {
+                          console.log('🔥 UPDATING CGST AMOUNT:', normalizedCgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated  
+                          // updateItem(globalIndex, "cgstAmount", String(normalizedCgst));
+                          totalGst += normalizedCgst;
+                          extractedFields.push(`CGST: ₹${normalizedCgst}`);
+                        }
+                      }
+                      
+                      if (extractedData.sgst || extractedData.sgstAmount) {
+                        const rawSgst = extractedData.sgst || extractedData.sgstAmount;
+                        const normalizedSgst = normalizeOcrAmount(rawSgst);
+                        if (normalizedSgst) {
+                          console.log('🔥 UPDATING SGST AMOUNT:', normalizedSgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated
+                          // updateItem(globalIndex, "sgstAmount", String(normalizedSgst));
+                          totalGst += normalizedSgst;
+                          extractedFields.push(`SGST: ₹${normalizedSgst}`);
+                        }
+                      }
+                      
+                      if (extractedData.igst || extractedData.igstAmount) {
+                        const rawIgst = extractedData.igst || extractedData.igstAmount;
+                        const normalizedIgst = normalizeOcrAmount(rawIgst);
+                        if (normalizedIgst) {
+                          console.log('🔥 UPDATING IGST AMOUNT:', normalizedIgst, 'for index:', globalIndex);
+                          // TODO: Add to form state when types are updated
+                          // updateItem(globalIndex, "igstAmount", String(normalizedIgst));
+                          totalGst += normalizedIgst;
+                          extractedFields.push(`IGST: ₹${normalizedIgst}`);
+                        }
+                      }
+                      
+                      // Update total GST amount
+                      if (totalGst > 0) {
+                        console.log('🔥 UPDATING TOTAL GST AMOUNT:', totalGst, 'for index:', globalIndex);
+                        // TODO: Add to form state when types are updated
+                        // updateItem(globalIndex, "gstAmount", String(totalGst));
+                        extractedFields.push(`Total GST: ₹${totalGst}`);
+                      }
+                      
+                      // 📊 ENHANCED SUCCESS FEEDBACK FOR NESTED FORMS
+                      const confidence = extractedData.confidence;
+                      const ambiguousFields = extractedData.ambiguousFields;
+                      
+                      // Show immediate feedback about what was extracted
+                      if (extractedFields.length > 0) {
+                        console.log('🔥 SUCCESSFULLY EXTRACTED FIELDS:', extractedFields);
+                        
+                        let description = `Populated: ${extractedFields.join(', ')}`;
+                        let variant = "default";
+                        
+                        if (confidence?.overall) {
+                          const overallPercent = Math.round(confidence.overall * 100);
+                          description += ` | 📊 Confidence: ${overallPercent}%`;
+                          
+                          if (overallPercent < 70) {
+                            description += " (Please verify)";
+                            variant = "destructive";
+                          } else if (overallPercent >= 90) {
+                            description += " (High confidence)";
+                          }
+                        }
+                        
+                        // Show success toast with confidence indicator
+                        toast({
+                          title: `🎉 OCR Complete for Item #${globalIndex + 1}!`,
+                          description,
+                          duration: 5000,
+                          variant: variant as any,
+                        });
+                      } else {
+                        // No fields extracted
+                        toast({
+                          title: "⚠️ OCR Complete",
+                          description: `No usable data could be extracted from this document for Item #${globalIndex + 1}.`,
+                          variant: "destructive",
+                        });
+                      }
+                      
+                      // Force form state update to ensure UI refreshes
+                      console.log('🔥 FINAL ITEM STATE after OCR for index', globalIndex, ':', items[globalIndex]);
+                      
+                      // ⚠️ Show ambiguous field warnings
+                      if (ambiguousFields && ambiguousFields.length > 0) {
+                        setTimeout(() => {
+                          ambiguousFields.forEach((field: any, index: number) => {
+                            setTimeout(() => {
+                              toast({
+                                title: `⚠️ Uncertain: ${field.field.toUpperCase()}`,
+                                description: `${field.reason}. Please verify: ${field.possibleValues.join(' OR ')}`,
+                                variant: "destructive",
+                                duration: 8000,
+                              });
+                            }, index * 500); // Stagger the warnings
+                          });
+                        }, 1500);
+                      }
+                    }
+                  }}
+                  data-testid={`ocr-upload-${globalIndex}`}
+                />
+              </div>
+              
+              {/* Advanced OCR-Extracted Fields Only (No Duplicates) */}
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                
                 <div>
-                  <Label htmlFor={`${sectionPrefix}bill-no-${globalIndex}`} className="text-sm font-medium">
-                    Bill No
+                  <Label htmlFor={`${sectionPrefix}invoice-number-${globalIndex}`} className="text-sm font-medium">
+                    Invoice Number
                   </Label>
                   <Input
-                    id={`${sectionPrefix}bill-no-${globalIndex}`}
+                    id={`${sectionPrefix}invoice-number-${globalIndex}`}
                     value={item.billNo || ''}
                     onChange={(e) => updateItem(globalIndex, "billNo", e.target.value)}
-                    placeholder="Bill No."
+                    placeholder="Invoice Number"
                     className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-no-${globalIndex}`}
+                    data-testid={`input-${sectionPrefix}invoice-number-${globalIndex}`}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor={`${sectionPrefix}vendor-address-${globalIndex}`} className="text-sm font-medium">
+                    Vendor Address
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}vendor-address-${globalIndex}`}
+                    value={item.vendorAddress || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorAddress", e.target.value)}
+                    placeholder="Vendor Address"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}vendor-address-${globalIndex}`}
                   />
                 </div>
                 
                 <div>
-                  <Label htmlFor={`${sectionPrefix}bill-date-${globalIndex}`} className="text-sm font-medium">
-                    Bill Date
+                  <Label htmlFor={`${sectionPrefix}vendor-pan-${globalIndex}`} className="text-sm font-medium">
+                    Vendor PAN
                   </Label>
                   <Input
-                    id={`${sectionPrefix}bill-date-${globalIndex}`}
-                    type="date"
-                    value={item.billDate || ''}
-                    onChange={(e) => updateItem(globalIndex, "billDate", e.target.value)}
+                    id={`${sectionPrefix}vendor-pan-${globalIndex}`}
+                    value={item.vendorPan || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorPan", e.target.value)}
+                    placeholder="Vendor PAN"
                     className="mt-1"
-                    data-testid={`input-${sectionPrefix}bill-date-${globalIndex}`}
+                    data-testid={`input-${sectionPrefix}vendor-pan-${globalIndex}`}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label htmlFor={`${sectionPrefix}vendor-gstin-${globalIndex}`} className="text-sm font-medium">
+                    Vendor GSTIN
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}vendor-gstin-${globalIndex}`}
+                    value={item.vendorGstin || ''}
+                    onChange={(e) => updateItem(globalIndex, "vendorGstin", e.target.value)}
+                    placeholder="Vendor GSTIN"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}vendor-gstin-${globalIndex}`}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor={`${sectionPrefix}gstin-${globalIndex}`} className="text-sm font-medium">
+                    GSTIN
+                  </Label>
+                  <Input
+                    id={`${sectionPrefix}gstin-${globalIndex}`}
+                    value={item.gstin || ''}
+                    onChange={(e) => updateItem(globalIndex, "gstin", e.target.value)}
+                    placeholder="GSTIN"
+                    className="mt-1"
+                    data-testid={`input-${sectionPrefix}gstin-${globalIndex}`}
                   />
                 </div>
               </div>

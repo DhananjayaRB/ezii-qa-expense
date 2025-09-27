@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -8,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, Clock, CreditCard } from "lucide-react";
+import { CheckCircle, XCircle, Clock, CreditCard, Eye } from "lucide-react";
 
 interface ExpenseListProps {
   claims: any[];
@@ -271,6 +272,17 @@ function ExpenseClaimsList({
                 {claim.status}
               </span>
             </Badge>
+            
+            <Link href={`/expense-claims/${claim.id}/view`} data-testid={`button-view-${claim.id}`}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                View
+              </Button>
+            </Link>
             
             {canManageStatus && claim.status === "pending" && (
               <div className="flex gap-2">

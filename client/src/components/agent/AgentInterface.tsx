@@ -19,6 +19,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { DataFormatter } from "./DataFormatter";
+import { usePlanStatus } from "@/hooks/usePlanStatus";
 
 interface Message {
   id: string;
@@ -36,11 +37,17 @@ interface AgentInterface {
 }
 
 export function AgentInterface({ isOpen, onClose }: AgentInterface) {
+  const { data: planStatus } = usePlanStatus();
+  
+  // Dynamic branding based on plan status
+  const brandName = planStatus?.isSaas === false ? 'PAY' : 'ezii';
+  const assistantName = planStatus?.isSaas === false ? 'PAYAI' : 'eziiAI';
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'agent',
-      content: "👋 Hi! I'm eziiAI, your intelligent assistant for expense management. I can help you query data and execute actions. Try commands like 'show pending claims' or 'approve all under 5000'. Type 'help' for available commands.",
+      content: `👋 Hi! I'm ${assistantName}, your intelligent assistant for expense management. I can help you query data and execute actions. Try commands like 'show pending claims' or 'approve all under 5000'. Type 'help' for available commands.`,
       timestamp: new Date()
     }
   ]);
@@ -180,7 +187,7 @@ export function AgentInterface({ isOpen, onClose }: AgentInterface) {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <span>
-                    <span className="text-blue-600 font-bold">ezii</span>
+                    <span className="text-blue-600 font-bold">{brandName}</span>
                     <span className="text-orange-500 font-bold">AI</span>
                   </span>
                   <Badge variant="outline" className="text-xs">

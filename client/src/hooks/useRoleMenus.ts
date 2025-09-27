@@ -29,6 +29,8 @@ const MENU_KEY_MAPPING: Record<string, string> = {
   "/reports": "reports",
   "/configuration": "configuration",
   "/config/access-rights": "access-rights",
+  "/config/utility-categories": "utility-categories",
+  "/config/units-of-measurement": "units-of-measurement",
   "/admin": "admin",
   "/employee/request": "employee-request",
   "/employee/claim": "employee-claim",

@@ -9,7 +9,7 @@ import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Building } from "lucide-react";
+import { Plus, Building, Receipt } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import OcrUpload from "@/components/ui/ocr-upload";
+import { normalizeOcrAmount } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -108,6 +110,77 @@ export default function DirectExpenses() {
     },
   });
 
+  // OCR Data mapping function for direct expenses
+  const handleOcrDataExtracted = (ocrData: any) => {
+    console.log('🔍 OCR Data extracted for direct expense:', ocrData);
+    
+    if (!ocrData) return;
+    
+    const updates: any = {};
+    const extractedDetails = [];
+    
+    // Map OCR amount to Amount field (with normalization)
+    if (ocrData.billAmount || ocrData.amount) {
+      const rawAmount = ocrData.billAmount || ocrData.amount;
+      const normalizedAmount = normalizeOcrAmount(rawAmount);
+      if (normalizedAmount) {
+        updates.amount = normalizedAmount;
+        extractedDetails.push(`Amount: ₹${normalizedAmount}`);
+      }
+    }
+    
+    // Map OCR date to Date field  
+    if (ocrData.billDate || ocrData.date) {
+      const date = ocrData.billDate || ocrData.date;
+      try {
+        const dateObj = new Date(date);
+        if (!isNaN(dateObj.getTime())) {
+          updates.date = dateObj.toISOString().split('T')[0];
+          extractedDetails.push(`Date: ${dateObj.toLocaleDateString('en-GB')}`);
+        }
+      } catch (e) {
+        console.log('Date parsing error:', e);
+      }
+    }
+    
+    // Map OCR invoice number
+    if (ocrData.billNo || ocrData.invoiceNumber || ocrData.billNumber) {
+      const invoiceNo = ocrData.billNo || ocrData.invoiceNumber || ocrData.billNumber;
+      updates.invoiceNumber = invoiceNo;
+      extractedDetails.push(`Invoice: ${invoiceNo}`);
+    }
+    
+    // Map vendor name
+    if (ocrData.vendorName) {
+      updates.vendorName = ocrData.vendorName;
+      extractedDetails.push(`Vendor: ${ocrData.vendorName}`);
+    }
+    
+    // Map description
+    if (ocrData.description && !formData.description) {
+      const desc = ocrData.description.substring(0, 100); // Limit description length
+      updates.description = desc;
+      extractedDetails.push(`Description added`);
+    }
+    
+    // Apply all updates to form
+    setFormData(prev => ({ ...prev, ...updates }));
+    
+    // Show success feedback only if data was actually extracted
+    if (extractedDetails.length > 0) {
+      toast({
+        title: "✅ OCR Data Applied!", 
+        description: `Extracted: ${extractedDetails.join(', ')}`,
+      });
+    } else {
+      toast({
+        title: "⚠️ OCR Complete",
+        description: "No usable data could be extracted from this document.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createExpenseMutation.mutate({
@@ -159,11 +232,30 @@ export default function DirectExpenses() {
                     New Direct Expense
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                   <DialogHeader>
                     <DialogTitle>New Direct Expense</DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1">
+                    {/* OCR Upload Section */}
+                    <div className="border-2 border-dashed border-blue-200 rounded-lg p-4 bg-blue-50">
+                      <div className="text-center space-y-2">
+                        <Receipt className="w-8 h-8 text-blue-600 mx-auto" />
+                        <h3 className="text-lg font-medium text-blue-900">Smart Bill Processing</h3>
+                        <p className="text-sm text-blue-700">
+                          Upload your bill/receipt and let OCR automatically fill expense details
+                        </p>
+                      </div>
+                      <div className="mt-4">
+                        <OcrUpload
+                          module="direct_expenses"
+                          claimTitle={() => `Direct Expense - ${formData.vendorName || 'New'}`}
+                          onDataExtracted={handleOcrDataExtracted}
+                          data-testid="ocr-upload-direct-expense"
+                        />
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="date">Date</Label>
@@ -217,10 +309,16 @@ export default function DirectExpenses() {
                           step="0.01"
                           value={formData.amount}
                           onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                          placeholder="0.00"
+                          placeholder="0.00 (or use OCR above)"
                           required
                           data-testid="input-expense-amount"
+                          className={formData.amount ? "border-green-300 bg-green-50" : ""}
                         />
+                        {formData.amount && (
+                          <p className="text-xs text-green-600 mt-1">
+                            ✓ Amount filled
+                          </p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="currency">Currency</Label>

@@ -26,7 +26,7 @@ export default function Uploads() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: receipts, isLoading: receiptsLoading } = useQuery({
+  const { data: receipts = [], isLoading: receiptsLoading } = useQuery<any[]>({
     queryKey: ["/api/receipts"],
     retry: false,
   });
@@ -36,13 +36,11 @@ export default function Uploads() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       <Sidebar />
-      
-      <div className="ml-60">
+      <div className="flex-1 flex flex-col min-h-0">
         <Header />
-        
-        <main className="p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900" data-testid="text-page-title">
               Receipt Uploads
@@ -74,7 +72,7 @@ export default function Uploads() {
               <CardContent>
                 {receiptsLoading ? (
                   <div className="text-center py-8">Loading receipts...</div>
-                ) : receipts && receipts.length > 0 ? (
+                ) : receipts.length > 0 ? (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {receipts.map((receipt: any) => (
                       <div

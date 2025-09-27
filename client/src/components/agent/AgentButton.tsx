@@ -10,7 +10,7 @@ export function AgentButton() {
     <>
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg z-40 transition-all duration-300 hover:scale-110"
+        className="fixed bottom-20 lg:bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg z-50 transition-all duration-300 hover:scale-110"
         data-testid="button-open-agent"
       >
         <div className="relative">

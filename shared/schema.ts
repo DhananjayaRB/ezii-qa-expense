@@ -103,6 +103,13 @@ export const expenseClaims = pgTable("expense_claims", {
   employeeNumber: varchar("employee_number"), // Employee number (for reports)  
   employeeEmail: varchar("employee_email"), // Email (for reports)
   
+  // OCR Bill Details - stores processed OCR data as JSON
+  billDetails: jsonb("bill_details"), // Stores OCR extracted data (bill no, amount, date, vendor, etc.)
+  
+  // Azure Blob File Attachments - for expense claim supporting documents
+  attachmentUrls: json("attachment_urls"), // Array of Azure Blob URLs for supporting documents
+  attachmentCount: integer("attachment_count").default(0), // Count of attached files
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -134,6 +141,29 @@ export const expenseItems = pgTable("expense_items", {
   date: timestamp("date").notNull(),
   receiptUrl: varchar("receipt_url"),
   receiptFileName: varchar("receipt_file_name"),
+  
+  // Bill Information - extracted from OCR or manually entered
+  billNo: varchar("bill_no"),
+  billDate: timestamp("bill_date"),
+  billAmount: decimal("bill_amount", { precision: 10, scale: 2 }),
+  
+  // Enhanced Bill Details for OCR data
+  vendorName: varchar("vendor_name"), // Client/Vendor name from bill
+  vendorAddress: text("vendor_address"), // Full vendor address
+  vendorPan: varchar("vendor_pan"), // PAN number
+  vendorGstin: varchar("vendor_gstin"), // GST number
+  invoiceNumber: varchar("invoice_number"), // Full invoice number
+  
+  // GST breakdown fields
+  cgstAmount: decimal("cgst_amount", { precision: 10, scale: 2 }),
+  sgstAmount: decimal("sgst_amount", { precision: 10, scale: 2 }),
+  igstAmount: decimal("igst_amount", { precision: 10, scale: 2 }),
+  gstAmount: decimal("gst_amount", { precision: 10, scale: 2 }), // Total GST amount
+  
+  // Additional OCR extracted fields
+  billDescription: text("bill_description"), // Description from bill
+  cityPlace: varchar("city_place"), // City/Place from bill
+  
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -154,6 +184,10 @@ export const directExpenses = pgTable("direct_expenses", {
   employerName: varchar("employer_name"), // Employee initiated (for reports)
   employeeNumber: varchar("employee_number"), // Employee number (for reports)  
   employeeEmail: varchar("employee_email"), // Email (for reports)
+  
+  // Azure Blob File Attachments - for direct expense supporting documents
+  attachmentUrls: json("attachment_urls"), // Array of Azure Blob URLs for supporting documents
+  attachmentCount: integer("attachment_count").default(0), // Count of attached files
   
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -183,6 +217,10 @@ export const expenseRequests = pgTable("expense_requests", {
   employerName: varchar("employer_name"), // Employee initiated (for reports)
   employeeNumber: varchar("employee_number"), // Employee number (for reports)  
   employeeEmail: varchar("employee_email"), // Email (for reports)
+  
+  // Azure Blob File Attachments - for expense request supporting documents
+  attachmentUrls: json("attachment_urls"), // Array of Azure Blob URLs for supporting documents
+  attachmentCount: integer("attachment_count").default(0), // Count of attached files
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -382,6 +420,10 @@ export const vendorOnboardingRequests = pgTable("vendor_onboarding_requests", {
   employeeNumber: varchar("employee_number"), // Employee number (for reports)  
   employeeEmail: varchar("employee_email"), // Email (for reports)
   
+  // Azure Blob File Attachments - for vendor onboarding supporting documents
+  attachmentUrls: json("attachment_urls"), // Array of Azure Blob URLs for supporting documents
+  attachmentCount: integer("attachment_count").default(0), // Count of attached files
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -544,6 +586,11 @@ export const paymentBatches = pgTable("payment_batches", {
   paymentMethod: varchar("payment_method").notNull(), // bank_transfer, check, cash
   bankDetails: text("bank_details"), // JSON string with bank details
   notes: text("notes"),
+  
+  // Azure Blob File Attachments - for payment processing documents and receipts
+  attachmentUrls: json("attachment_urls"), // Array of Azure Blob URLs for payment documents
+  attachmentCount: integer("attachment_count").default(0), // Count of attached files
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -985,6 +1032,12 @@ export const insertExpenseItemSchema = createInsertSchema(expenseItems).omit({
 }).extend({
   amount: z.coerce.number(),
   date: z.coerce.date(),
+  billDate: z.coerce.date().optional(),
+  billAmount: z.coerce.number().optional(),
+  cgstAmount: z.coerce.number().optional(),
+  sgstAmount: z.coerce.number().optional(),
+  igstAmount: z.coerce.number().optional(),
+  gstAmount: z.coerce.number().optional(),
 });
 
 export const insertDirectExpenseSchema = createInsertSchema(directExpenses).omit({
@@ -1230,6 +1283,168 @@ export const insertCostCentreConfigSchema = createInsertSchema(costCentreConfigs
   createdAt: true,
   updatedAt: true,
 });
+
+// ========== OCR FEATURE TABLES ==========
+
+// OCR Results - Store extracted data from receipts/bills with confirmation status
+export const ocrResults = pgTable("ocr_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Link to the source file/document
+  fileName: varchar("file_name").notNull(),
+  fileUrl: varchar("file_url").notNull(),
+  fileType: varchar("file_type").notNull(), // image/jpeg, image/png, application/pdf
+  fileSize: integer("file_size"), // File size in bytes
+  
+  // OCR processing status
+  status: varchar("status").notNull().default("processing"), // processing, completed, failed, confirmed
+  processingStartedAt: timestamp("processing_started_at").defaultNow(),
+  processingCompletedAt: timestamp("processing_completed_at"),
+  errorMessage: text("error_message"), // Error details if processing failed
+  
+  // Extracted data fields (flexible JSON structure)
+  extractedData: jsonb("extracted_data"), // Raw extracted data from OCR
+  confirmedData: jsonb("confirmed_data"), // User-confirmed/edited data
+  
+  // Processing details
+  confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }), // OCR confidence score
+  processingMethod: varchar("processing_method").notNull().default("tesseract"), // tesseract, openai, etc.
+  processingTimeMs: integer("processing_time_ms").notNull().default(0), // Time taken to process
+  tokensUsed: integer("tokens_used"), // Tokens used for AI-based OCR
+  
+  // Common extracted fields (for easy querying)
+  amount: decimal("amount", { precision: 10, scale: 2 }), // Extracted amount
+  date: timestamp("date"), // Extracted date
+  vendorName: varchar("vendor_name"), // Extracted vendor/merchant name
+  invoiceNumber: varchar("invoice_number"), // Extracted invoice/bill number
+  description: text("description"), // Extracted description/items
+  
+  // User confirmation tracking
+  isConfirmed: boolean("is_confirmed").default(false),
+  confirmedBy: varchar("confirmed_by").references(() => users.id),
+  confirmedAt: timestamp("confirmed_at"),
+  
+  // Claim title mapping for pre-saved OCR data
+  claimTitle: varchar("claim_title"), // Title to map OCR data to expense forms
+  
+  // Link to created records (after confirmation)
+  expenseClaimId: varchar("expense_claim_id").references(() => expenseClaims.id),
+  directExpenseId: varchar("direct_expense_id").references(() => directExpenses.id),
+  billMasterId: varchar("bill_master_id"), // For bill master entries
+  
+  // Metadata
+  userId: varchar("user_id").notNull().references(() => users.id),
+  orgId: varchar("org_id").notNull(), // Organization context
+  module: varchar("module").notNull(), // employee_claim, vendor_claim, direct_expense, bills
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// OCR Field Mapping - Store field mapping configurations for different document types
+export const ocrFieldMappings = pgTable("ocr_field_mappings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  orgId: varchar("org_id").notNull(),
+  module: varchar("module").notNull(), // employee_claim, vendor_claim, direct_expense, bills
+  documentType: varchar("document_type").notNull(), // receipt, invoice, bill, etc.
+  
+  // Field mapping rules (JSON structure defining how to extract and map fields)
+  mappingRules: jsonb("mapping_rules").notNull(),
+  
+  // Configuration
+  isActive: boolean("is_active").default(true),
+  priority: integer("priority").default(1), // Higher priority mappings are tried first
+  
+  // Metadata
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// OCR Processing Logs - Track OCR processing attempts and performance
+export const ocrProcessingLogs = pgTable("ocr_processing_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  ocrResultId: varchar("ocr_result_id").notNull().references(() => ocrResults.id),
+  
+  // Processing details
+  processor: varchar("processor").notNull().default("openai"), // openai, google_vision, etc.
+  model: varchar("model"), // gpt-5, etc.
+  processingTimeMs: integer("processing_time_ms"), // Processing duration
+  
+  // API response details
+  rawResponse: jsonb("raw_response"), // Full API response for debugging
+  confidence: decimal("confidence", { precision: 5, scale: 4 }), // Confidence score if available
+  tokensUsed: integer("tokens_used"), // For cost tracking
+  
+  // Status
+  success: boolean("success").notNull(),
+  errorCode: varchar("error_code"),
+  errorMessage: text("error_message"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relations for OCR tables
+export const ocrResultsRelations = relations(ocrResults, ({ one, many }) => ({
+  uploadedByUser: one(users, {
+    fields: [ocrResults.userId],
+    references: [users.id],
+  }),
+  confirmedByUser: one(users, {
+    fields: [ocrResults.confirmedBy],
+    references: [users.id],
+  }),
+  expenseClaim: one(expenseClaims, {
+    fields: [ocrResults.expenseClaimId],
+    references: [expenseClaims.id],
+  }),
+  directExpense: one(directExpenses, {
+    fields: [ocrResults.directExpenseId],
+    references: [directExpenses.id],
+  }),
+  processingLogs: many(ocrProcessingLogs),
+}));
+
+export const ocrFieldMappingsRelations = relations(ocrFieldMappings, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [ocrFieldMappings.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const ocrProcessingLogsRelations = relations(ocrProcessingLogs, ({ one }) => ({
+  ocrResult: one(ocrResults, {
+    fields: [ocrProcessingLogs.ocrResultId],
+    references: [ocrResults.id],
+  }),
+}));
+
+// Schema types for OCR
+export const insertOcrResultSchema = createInsertSchema(ocrResults).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOcrFieldMappingSchema = createInsertSchema(ocrFieldMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOcrProcessingLogSchema = createInsertSchema(ocrProcessingLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type OcrResult = typeof ocrResults.$inferSelect;
+export type InsertOcrResult = z.infer<typeof insertOcrResultSchema>;
+export type OcrFieldMapping = typeof ocrFieldMappings.$inferSelect;
+export type InsertOcrFieldMapping = z.infer<typeof insertOcrFieldMappingSchema>;
+export type OcrProcessingLog = typeof ocrProcessingLogs.$inferSelect;
+export type InsertOcrProcessingLog = z.infer<typeof insertOcrProcessingLogSchema>;
 
 // Vendor Management types
 export type Vendor = typeof vendors.$inferSelect;
@@ -1810,6 +2025,94 @@ export const customReportsRelations = relations(customReports, ({ one }) => ({
   owner: one(users, {
     fields: [customReports.ownerId],
     references: [users.id],
+  }),
+}));
+
+// User Tutorials table for tracking tutorial progress
+export const userTutorials = pgTable("user_tutorials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  orgId: varchar("org_id").notNull(),
+  tutorialName: varchar("tutorial_name").notNull(), // e.g., 'onboarding', 'dashboard', 'expense-claim'
+  stepId: varchar("step_id").notNull(), // e.g., 'step-1', 'step-2', 'welcome'
+  isCompleted: boolean("is_completed").notNull().default(false),
+  isSkipped: boolean("is_skipped").notNull().default(false),
+  allTutorialsDisabled: boolean("all_tutorials_disabled").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`),
+});
+
+export const insertUserTutorialSchema = createInsertSchema(userTutorials).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserTutorial = typeof userTutorials.$inferSelect;
+export type InsertUserTutorial = z.infer<typeof insertUserTutorialSchema>;
+
+// User tutorial relations
+export const userTutorialsRelations = relations(userTutorials, ({ one }) => ({
+  user: one(users, {
+    fields: [userTutorials.userId],
+    references: [users.id],
+  }),
+}));
+
+// Utility Categories Master - for utility bill types like Electricity, Water, Gas, etc.
+export const utilityCategories = pgTable("utility_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  orgId: varchar("org_id").notNull(),
+  isCustom: boolean("is_custom").notNull().default(false), // User-created custom categories
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`),
+});
+
+export const insertUtilityCategorySchema = createInsertSchema(utilityCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UtilityCategory = typeof utilityCategories.$inferSelect;
+export type InsertUtilityCategory = z.infer<typeof insertUtilityCategorySchema>;
+
+// Units of Measurement Master - linked to utility categories
+export const unitsOfMeasurement = pgTable("units_of_measurement", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  abbreviation: varchar("abbreviation").notNull(),
+  utilityCategoryId: varchar("utility_category_id").references(() => utilityCategories.id),
+  orgId: varchar("org_id").notNull(),
+  isCustom: boolean("is_custom").notNull().default(false), // User-created custom units
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").default(sql`now()`),
+  updatedAt: timestamp("updated_at").default(sql`now()`),
+});
+
+export const insertUnitsOfMeasurementSchema = createInsertSchema(unitsOfMeasurement).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UnitsOfMeasurement = typeof unitsOfMeasurement.$inferSelect;
+export type InsertUnitsOfMeasurement = z.infer<typeof insertUnitsOfMeasurementSchema>;
+
+// Utility category relations  
+export const utilityCategoriesRelations = relations(utilityCategories, ({ many }) => ({
+  unitsOfMeasurement: many(unitsOfMeasurement),
+}));
+
+// Units of measurement relations
+export const unitsOfMeasurementRelations = relations(unitsOfMeasurement, ({ one }) => ({
+  utilityCategory: one(utilityCategories, {
+    fields: [unitsOfMeasurement.utilityCategoryId],
+    references: [utilityCategories.id],
   }),
 }));
 

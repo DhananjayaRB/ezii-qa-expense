@@ -36,7 +36,125 @@ export interface ApprovalAction {
 }
 
 export class WorkflowEngine {
+  private workflowCache = new Map<string, Workflow[]>();
+  private assignmentCache = new Map<string, (WorkflowAssignment & { workflow: Workflow })[]>();
+  private lastCacheTime = 0;
+  private readonly cacheTimeout = 30000; // 30 seconds
+
   constructor(private storage: IStorage) {}
+
+  /**
+   * OPTIMIZED: Bulk workflow determination for multiple contexts
+   * Loads workflows and assignments once, then processes all contexts
+   */
+  async bulkDetermineWorkflows(contexts: WorkflowContext[]): Promise<Map<string, Workflow | null>> {
+    const results = new Map<string, Workflow | null>();
+    
+    if (contexts.length === 0) return results;
+
+    // Get all unique company IDs and process types
+    const companyIds = [...new Set(contexts.map(ctx => ctx.companyId))];
+    const processTypes = [...new Set(contexts.map(ctx => ctx.processType))];
+    
+    // Bulk load workflows and assignments for all companies and process types
+    await this.loadWorkflowCache(companyIds, processTypes);
+    
+    // Process each context using cached data
+    for (const context of contexts) {
+      const contextKey = this.getContextKey(context);
+      const workflow = await this.determineWorkflowFromCache(context);
+      results.set(contextKey, workflow);
+    }
+    
+    return results;
+  }
+
+  /**
+   * OPTIMIZED: Load and cache workflows and assignments for bulk operations
+   */
+  private async loadWorkflowCache(companyIds: string[], processTypes: string[]): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastCacheTime < this.cacheTimeout && this.workflowCache.size > 0) {
+      return; // Use existing cache
+    }
+
+    console.log(`🚀 Loading workflow cache for ${companyIds.length} companies and ${processTypes.length} process types`);
+    
+    // Bulk load all workflows
+    const allWorkflows = await this.storage.getWorkflows({ isActive: true });
+    
+    // Group workflows by company
+    for (const companyId of companyIds) {
+      const companyWorkflows = allWorkflows.filter(w => 
+        w.companyId === companyId || w.companyId === null
+      );
+      this.workflowCache.set(companyId, companyWorkflows);
+    }
+    
+    // Bulk load all assignments  
+    for (const processType of processTypes) {
+      const assignments = await this.storage.getWorkflowAssignments({ processType });
+      this.assignmentCache.set(processType, assignments);
+    }
+    
+    this.lastCacheTime = now;
+    console.log(`✅ Workflow cache loaded: ${this.workflowCache.size} company caches, ${this.assignmentCache.size} assignment caches`);
+  }
+
+  private getContextKey(context: WorkflowContext): string {
+    return `${context.companyId}:${context.processType}:${context.vendorId || ''}:${context.expenseHeadId || ''}`;
+  }
+
+  private async determineWorkflowFromCache(context: WorkflowContext): Promise<Workflow | null> {
+    try {
+      // Step 1: Try cached assignments
+      const assignments = this.assignmentCache.get(context.processType) || [];
+      
+      const tenantAssignments = assignments.filter(assignment => 
+        assignment.workflow.companyId === context.companyId
+      );
+      const globalAssignments = assignments.filter(assignment => 
+        assignment.workflow.companyId === null
+      );
+      const companyAssignments = tenantAssignments.length > 0 ? tenantAssignments : globalAssignments;
+      
+      // Find the most specific matching assignment
+      const relevantAssignments = companyAssignments.sort((a, b) => a.priority - b.priority);
+      
+      for (const assignment of relevantAssignments) {
+        // Check for exact vendor match
+        if (context.vendorId && assignment.vendorId === context.vendorId) {
+          return assignment.workflow;
+        }
+        
+        // Check for exact expense category match
+        if (context.expenseHeadId && assignment.expenseHeadId === context.expenseHeadId) {
+          return assignment.workflow;
+        }
+        
+        // Check for default assignment
+        if (!assignment.vendorId && !assignment.expenseHeadId && assignment.isDefault) {
+          return assignment.workflow;
+        }
+      }
+
+      // Step 2: Fallback to cached workflows
+      const companyWorkflows = this.workflowCache.get(context.companyId) || [];
+      const tenantWorkflows = companyWorkflows.filter(w => w.companyId === context.companyId);
+      const globalWorkflows = companyWorkflows.filter(w => w.companyId === null);
+      const workflowsToCheck = tenantWorkflows.length > 0 ? tenantWorkflows : globalWorkflows;
+      
+      const matchingWorkflow = workflowsToCheck.find(workflow => 
+        workflow.processTypes?.includes(context.processType)
+      );
+      
+      return matchingWorkflow || null;
+
+    } catch (error) {
+      console.error('Error determining workflow from cache:', error);
+      return null;
+    }
+  }
 
   /**
    * Determines the applicable workflow for a given context
@@ -130,6 +248,96 @@ export class WorkflowEngine {
     } catch (error) {
       console.error('Error determining workflow:', error);
       return null; // Fallback to legacy on error
+    }
+  }
+
+  /**
+   * OPTIMIZED: Bulk get approvers for multiple workflow levels
+   * Loads users once, then processes all approver requests
+   */
+  async bulkGetApproversForLevels(
+    requests: Array<{ workflowId: string; level: number; context: WorkflowContext }>
+  ): Promise<Map<string, string[]>> {
+    const results = new Map<string, string[]>();
+    
+    if (requests.length === 0) return results;
+
+    // Get all unique workflow IDs and company IDs
+    const workflowIds = [...new Set(requests.map(r => r.workflowId))];
+    const companyIds = [...new Set(requests.map(r => r.context.companyId))];
+    
+    // Bulk load all workflow levels and users
+    const [allLevels, allUsers] = await Promise.all([
+      Promise.all(workflowIds.map(async workflowId => ({
+        workflowId,
+        levels: await this.storage.getWorkflowLevels(workflowId)
+      }))),
+      this.storage.getUsers()
+    ]);
+    
+    // Create lookup maps
+    const levelMap = new Map<string, any[]>();
+    allLevels.forEach(({ workflowId, levels }) => {
+      levelMap.set(workflowId, levels);
+    });
+    
+    // Process each request using cached data
+    for (const request of requests) {
+      const requestKey = `${request.workflowId}:${request.level}:${request.context.submitterId}`;
+      const approvers = this.getApproversFromCache(
+        request.workflowId,
+        request.level,
+        request.context,
+        levelMap,
+        allUsers
+      );
+      results.set(requestKey, approvers);
+    }
+    
+    return results;
+  }
+
+  private getApproversFromCache(
+    workflowId: string,
+    level: number,
+    context: WorkflowContext,
+    levelMap: Map<string, any[]>,
+    allUsers: any[]
+  ): string[] {
+    try {
+      const levels = levelMap.get(workflowId) || [];
+      const workflowLevel = levels.find(l => l.level === level);
+      
+      if (!workflowLevel || !workflowLevel.role) {
+        return [];
+      }
+
+      // Filter users by company and role, excluding submitter
+      const approvers = allUsers.filter(user => 
+        user.companyId === context.companyId && 
+        user.role?.toLowerCase() === workflowLevel.role.name?.toLowerCase() && 
+        user.id !== context.submitterId
+      );
+      
+      // Apply amount-based filtering if applicable
+      if (context.amount && workflowLevel.minAmount) {
+        const minAmount = parseFloat(workflowLevel.minAmount);
+        if (context.amount < minAmount) {
+          return [];
+        }
+      }
+      if (context.amount && workflowLevel.maxAmount) {
+        const maxAmount = parseFloat(workflowLevel.maxAmount);
+        if (context.amount > maxAmount) {
+          return [];
+        }
+      }
+
+      return approvers.map(user => user.id);
+
+    } catch (error) {
+      console.error('Error getting approvers from cache:', error);
+      return [];
     }
   }
 

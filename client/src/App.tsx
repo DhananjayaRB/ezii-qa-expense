@@ -1,6 +1,7 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { MobileMenuProvider } from "@/contexts/MobileMenuContext";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -18,6 +19,13 @@ import Payments from "@/pages/accountant/payments";
 import Receipts from "@/pages/accountant/receipts";
 import Reports from "@/pages/reports";
 import UserReports from "@/pages/user-reports";
+import ReceiptReport from "@/pages/reports/receipt-report";
+import ControlReports from "@/pages/reports/control-reports";
+import AccountantReport from "@/pages/reports/accountant-report";
+import EfficientFolksReport from "@/pages/reports/efficient-folks-report";
+import DepartmentReport from "@/pages/reports/department-report";
+import CardStatementAnalysis from "@/pages/reports/card-statement-analysis";
+import ComplianceReport from "@/pages/reports/compliance-report";
 import Configuration from "@/pages/configuration";
 import Admin from "@/pages/admin";
 import Workflow from "@/pages/workflow";
@@ -51,15 +59,22 @@ import ExpenseHeads from "@/pages/config/expense-heads";
 import ExpensePolicy from "@/pages/config/expense-policy";
 import TdsMasterConfig from "@/pages/config/tds-master";
 import BillMasterConfig from "@/pages/config/bill-master";
+import UtilityCategoriesConfig from "@/pages/config/utility-categories";
+import UnitsOfMeasurementConfig from "@/pages/config/units-of-measurement";
 import WorkflowConfig from "@/pages/config/workflow";
 import AccessRights from "@/pages/config/access-rights";
 import ReportBuilderPage from "@/pages/config/report-builder";
 import CustomReportsPage from "@/pages/reports/custom";
 import TokenHandler from "@/pages/TokenHandler";
 import CostCenter from "@/pages/configuration/cost-center";
+import ExpenseClaimView from "@/pages/expense-claim-view";
 import { useAuth } from "@/hooks/useAuth";
 import { AgentButton } from "@/components/agent/AgentButton";
 import { PageLoading } from "@/components/ui/loading";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { TutorialProvider } from "@/components/tutorial/TutorialContext";
+import UserManualPage from "@/pages/user-manual";
+import DemoPresentationPage from "@/pages/demo-presentation";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -71,6 +86,7 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/token/:token" component={TokenHandler} />
       <Route path="/id/:token" component={TokenHandler} />
       {!isAuthenticated ? (
         <>
@@ -80,6 +96,8 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Dashboard} />
+          <Route path="/dashboard/expense-claims" component={Claim} />
+          <Route path="/expense-claims/:id/view" component={ExpenseClaimView} />
           <Route path="/employee/claim" component={Claim} />
           <Route path="/employee/request" component={Request} />
           <Route path="/employee/uploads" component={Uploads} />
@@ -119,16 +137,27 @@ function Router() {
           <Route path="/config/expense-policy" component={ExpensePolicy} />
           <Route path="/config/tds-master" component={TdsMasterConfig} />
           <Route path="/config/bill-master" component={BillMasterConfig} />
+          <Route path="/config/utility-categories" component={UtilityCategoriesConfig} />
+          <Route path="/config/units-of-measurement" component={UnitsOfMeasurementConfig} />
           <Route path="/config/workflow" component={WorkflowConfig} />
           <Route path="/config/access-rights" component={AccessRights} />
           <Route path="/config/report-builder" component={ReportBuilderPage} />
           <Route path="/reports" component={Reports} />
           <Route path="/reports/user" component={UserReports} />
+          <Route path="/reports/receipt" component={ReceiptReport} />
+          <Route path="/reports/control" component={ControlReports} />
+          <Route path="/reports/accountant" component={AccountantReport} />
+          <Route path="/reports/efficient-folks" component={EfficientFolksReport} />
+          <Route path="/reports/department" component={DepartmentReport} />
+          <Route path="/reports/card-analysis" component={CardStatementAnalysis} />
+          <Route path="/reports/compliance" component={ComplianceReport} />
           <Route path="/reports/custom" component={CustomReportsPage} />
           <Route path="/configuration" component={Configuration} />
           <Route path="/configuration/cost-center" component={CostCenter} />
           <Route path="/admin" component={Admin} />
           <Route path="/workflow" component={Workflow} />
+          <Route path="/user-manual" component={UserManualPage} />
+          <Route path="/demo-presentation" component={DemoPresentationPage} />
         </>
       )}
       <Route component={NotFound} />
@@ -140,9 +169,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router />
-        <AgentButton />
-        <Toaster />
+        <ThemeProvider>
+          <TutorialProvider>
+            <MobileMenuProvider>
+              <Router />
+              <AgentButton />
+              <Toaster />
+            </MobileMenuProvider>
+          </TutorialProvider>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -811,12 +811,13 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
   return (
     <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Report Builder</DialogTitle>
         </DialogHeader>
         
-        <div className="grid grid-cols-12 gap-6">
+        <div className="overflow-y-auto max-h-[calc(90vh-8rem)] relative">
+          <div className="grid grid-cols-12 gap-6">
           {/* Left Panel - Report Configuration */}
           <div className="col-span-8 space-y-6">
             {/* Period Selector */}
@@ -828,12 +829,18 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
                 <SelectTrigger className="w-full bg-blue-50">
                   <SelectValue placeholder="Select Period" />
                 </SelectTrigger>
-                <SelectContent>
-                  {periods.map(period => (
-                    <SelectItem key={period.value} value={period.value}>
-                      {period.label}
+                <SelectContent side="bottom" align="start">
+                  {periods && periods.length > 0 ? (
+                    periods.map(period => (
+                      <SelectItem key={period.value} value={period.value}>
+                        {period.label}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-periods" disabled>
+                      No periods available
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -864,7 +871,7 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
                 <PopoverContent className="w-[400px] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Search processes..." />
-                    <CommandEmpty>No processes found.</CommandEmpty>
+                    <CommandEmpty>No processes available.</CommandEmpty>
                     <CommandGroup>
                       {/* Select All Option */}
                       <CommandItem
@@ -933,17 +940,23 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Select Filter Field" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {effectiveAvailableFields
-                      .filter((field: any) => {
-                        // Get effective filters to check for duplicates
-                        return !getEffectiveDynamicFilters().find(f => f.field === field.value);
-                      })
-                      .map((field: any) => (
-                        <SelectItem key={field.value} value={field.value}>
+                  <SelectContent side="bottom" align="start">
+                    {effectiveAvailableFields && effectiveAvailableFields.length > 0 ? (
+                      effectiveAvailableFields
+                        .filter((field: any) => {
+                          // Get effective filters to check for duplicates
+                          return !getEffectiveDynamicFilters().find(f => f.field === field.value);
+                        })
+                        .map((field: any) => (
+                          <SelectItem key={field.value} value={field.value}>
                           {field.label}
-                        </SelectItem>
-                      ))}
+                          </SelectItem>
+                        ))
+                    ) : (
+                      <SelectItem value="no-fields" disabled>
+                        No filter fields available
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 <Button 
@@ -1042,8 +1055,8 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
                 <SelectTrigger>
                   <SelectValue placeholder="-- select --" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No saved filters yet</SelectItem>
+                <SelectContent side="bottom" align="start">
+                  <SelectItem value="none" disabled>No saved filters yet</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1365,6 +1378,7 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
             </div>
           )}
         </div>
+        </div>
       </DialogContent>
     </Dialog>
     
@@ -1401,7 +1415,7 @@ function ReportBuilderDialog({ isOpen, onClose, loadedReport }: ReportBuilderDia
               <SelectTrigger data-testid="select-save-report-visibility">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent side="bottom" align="start">
                 <SelectItem value="private">Private (Only me)</SelectItem>
                 <SelectItem value="shared">Shared (Organization)</SelectItem>
                 <SelectItem value="role-based">Role-based Access</SelectItem>

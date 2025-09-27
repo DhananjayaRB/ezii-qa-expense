@@ -1,0 +1,198 @@
+{
+    "result": "Success",
+    "statuscode": 200,
+    "message": " Worker Master Request ",
+    "data": {
+        "column": [
+            {
+                "text": "Worker ID",
+                "dataField": "employee_number",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Worker Name",
+                "dataField": "user_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "User ID",
+                "dataField": "user_id",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "First Name",
+                "dataField": "first_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Middle Name",
+                "dataField": "middle_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Last Name",
+                "dataField": "last_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Email ID",
+                "dataField": "email",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Communication Email",
+                "dataField": "communication_email",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Mobile Number 1",
+                "dataField": "Mobile_number_1",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Mobile Number 2",
+                "dataField": "Mobile_number_2",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "DOJ",
+                "dataField": "date_of_joining",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "DOL",
+                "dataField": "last_working_day",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Gender",
+                "dataField": "gender_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Leave Role",
+                "dataField": "leave_id",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Date of Birth",
+                "dataField": "date_of_birth",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Role",
+                "dataField": "user_role_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Worker Type",
+                "dataField": "worker_type",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Profile Photo",
+                "dataField": "user_profile",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Is Differnetly Abled",
+                "dataField": "is_differently_abled",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Location",
+                "dataField": "type_id_0",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Department",
+                "dataField": "type_id_1",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Band",
+                "dataField": "band_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Level",
+                "dataField": "level_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Designation",
+                "dataField": "designation_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Vendor",
+                "dataField": "vendor_name",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Reporting Manager",
+                "dataField": "reporting_manager_id",
+                "dataType": null,
+                "formula": null
+            },
+            {
+                "text": "Supervisor",
+                "dataField": "supervisor_id",
+                "dataType": null,
+                "formula": null
+            }
+        ],
+        "data": [
+            {
+                "employee_number": "015",
+                "user_name": "Ashwani Khanna",
+                "user_id": "225",
+                "first_name": "Ashwani Khanna",
+                "middle_name": "",
+                "last_name": "",
+                "date_of_joining": "10-Sep-2012",
+                "last_working_day": "",
+                "gender_name": "Male",
+                "leave_id": "employee",
+                "email": "ashwani.khanna@fundermax.biz",
+                "communication_email": "resolvepaytest@gmail.com",
+                "date_of_birth": "22-Apr-1983",
+                "user_role_name": "HR",
+                "Mobile_number_1": "",
+                "Mobile_number_2": "",
+                "worker_type": "Employee",
+                "user_profile": "",
+                "is_differently_abled": "No",
+                "band_name": "",
+                "level_name": "",
+                "designation_name": "Chief Customer Officer",
+                "vendor_name": "",
+                "reporting_manager_id": "Sanjay Prabhu",
+                "type_id_0": "Chandigarh Office",
+                "type_id_1": "Marketing"
+            },
